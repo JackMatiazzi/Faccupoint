@@ -1,8 +1,6 @@
 # FaccuPoint
 
-Prototipo funcional desenvolvido como trabalho de conclusao de curso. O objetivo do projeto e validar um fluxo simples de quiz ao vivo em sala de aula, com professor criando perguntas, abrindo uma sessao e alunos respondendo em tempo real.
-
-O foco desta versao e entregar um sistema demonstravel, com separacao basica entre backend, frontend do professor e frontend do aluno, mantendo boas praticas adequadas a um prototipo academico.
+Projeto de TCC. Um sistema de quiz ao vivo para sala de aula: o professor cria as perguntas, abre uma sessao com codigo, e os alunos entram e respondem em tempo real.
 
 ## Tecnologias
 
@@ -11,11 +9,11 @@ O foco desta versao e entregar um sistema demonstravel, com separacao basica ent
 - Frontend: Flet
 - Comunicacao em tempo real: WebSockets
 
-## Escopo do prototipo
+## O que funciona
 
-O professor pode fazer login, cadastrar quizzes, adicionar perguntas e abrir uma sala com codigo. Os alunos informam o codigo, entram no lobby, respondem as perguntas e visualizam o placar ao final.
+O professor faz login, cadastra quizzes com perguntas, abre uma sala e compartilha o codigo com os alunos. Os alunos informam o codigo, entram no lobby, respondem as perguntas no ritmo da sessao e veem o placar no final.
 
-A autenticacao usa PIN com hash e token assinado para proteger as principais rotas do professor. Essa solucao e suficiente para o prototipo, mas nao substitui uma estrategia completa de autenticacao para producao.
+A autenticacao e feita com PIN e token assinado. Serve pro prototipo — nao e o ideal pra producao, mas cumpre o papel aqui.
 
 ## Configuracao
 
@@ -29,9 +27,7 @@ CORS_ORIGINS=http://127.0.0.1:8000,http://localhost:8000
 SECRET_KEY=troque-este-segredo-em-producao
 ```
 
-O campo `SECRET_KEY` e usado para assinar os tokens de sessao do professor. Em ambiente real, ele deve ser alterado para um valor secreto e nao deve ser versionado.
-
-Opcionalmente, para enviar relatorio por email ao final da aula:
+Se quiser enviar relatorio por email ao fim da aula, adicione tambem:
 
 ```env
 EMAIL_HOST=smtp.gmail.com
@@ -63,13 +59,9 @@ Na raiz do projeto:
 python launcher.py
 ```
 
-Esse comando inicia o backend e abre o aplicativo do professor. O aplicativo do aluno tambem pode ser iniciado separadamente:
+Isso inicia o backend e abre o app do professor. O app do aluno tambem pode ser aberto separado:
 
 ```bash
 cd frontend/aluno
 python -m app.main
 ```
-
-## Observacoes de desenvolvimento
-
-Arquivos locais como `.env`, bancos `.db`, caches `__pycache__` e builds gerados pelo Flet nao devem ser commitados. O projeto mantem esses arquivos no `.gitignore` para preservar apenas codigo-fonte, configuracoes de exemplo e documentacao.
