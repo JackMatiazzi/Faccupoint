@@ -1,58 +1,75 @@
 # FaccuPoint
 
-Plataforma educacional gamificada (TCC), com foco em quizzes, pontuação e progressão. A visão do trabalho inclui backend em PostgreSQL, WebSockets e arquitetura distribuída; no **Ciclo 1** o repositório entrega um protótipo **local** em **Python + Kivy** com **SQLite**: login de docente e criação/edição de quiz.
+Prototipo funcional desenvolvido como trabalho de conclusao de curso. O objetivo do projeto e validar um fluxo simples de quiz ao vivo em sala de aula, com professor criando perguntas, abrindo uma sessao e alunos respondendo em tempo real.
 
-**Requisitos:** Python 3.10+, Git, editor à escolha. SQLite via `sqlite3` da biblioteca padrão.
+O foco desta versao e entregar um sistema demonstravel, com separacao basica entre backend, frontend do professor e frontend do aluno, mantendo boas praticas adequadas a um prototipo academico.
 
----
+## Tecnologias
 
-## Onde rodar
+- Backend: FastAPI
+- Banco de dados: PostgreSQL
+- Frontend: Flet
+- Comunicacao em tempo real: WebSockets
 
-Sempre na **raiz do repositório** (pasta com este `README`, `main.py`, `db/`, `data/`). O código Python está em `src/app/` (pacote `import app`: `infra/`, `repos/`, `regras/`, `telas/`, `design_system/`).
+## Escopo do prototipo
 
----
+O professor pode fazer login, cadastrar quizzes, adicionar perguntas e abrir uma sala com codigo. Os alunos informam o codigo, entram no lobby, respondem as perguntas e visualizam o placar ao final.
 
-## Ciclo 1.1 — Ambiente
+A autenticacao usa PIN com hash e token assinado para proteger as principais rotas do professor. Essa solucao e suficiente para o prototipo, mas nao substitui uma estrategia completa de autenticacao para producao.
 
-```powershell
-cd caminho\para\Faccupoint
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python -c "import kivy; print(kivy.__version__)"
+## Configuracao
+
+Crie o arquivo `backend/.env` a partir de `backend/.env.example`:
+
+```env
+DATABASE_URL=postgresql://usuario:senha@host/banco?sslmode=require
+DB_SCHEMA=faccupoint
+APP_TIMEZONE=America/Sao_Paulo
+CORS_ORIGINS=http://127.0.0.1:8000,http://localhost:8000
+SECRET_KEY=troque-este-segredo-em-producao
 ```
 
-Para sair do venv: `deactivate`.
+O campo `SECRET_KEY` e usado para assinar os tokens de sessao do professor. Em ambiente real, ele deve ser alterado para um valor secreto e nao deve ser versionado.
 
----
+Opcionalmente, para enviar relatorio por email ao final da aula:
 
-## Ciclo 1.2 — Banco (SQLite)
-
-- Modelo em [`db/schema.sql`](db/schema.sql): `docentes`, `quizzes` (com `titulo_normalizado` e `UNIQUE (id_docente_proprietario, titulo_normalizado)`), `perguntas`, `alternativas`, e tabelas `sessoes`, `participantes`, `tentativas` (base para ciclos futuros).
-
-Criar/atualizar o arquivo do banco (cria `data/` se precisar):
-
-```powershell
-python inicializacao_local/init_db.py
+```env
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=email-da-aplicacao@gmail.com
+EMAIL_PASSWORD=senha-de-app
+EMAIL_FROM=FaccuPoint <email-da-aplicacao@gmail.com>
+EMAIL_STARTTLS=1
 ```
 
-O arquivo gerado é **`data/faccupoint.db`** (geralmente não vai no Git). Se já existir um `.db` antigo, rodar de novo o `init_db` adiciona o que faltar com `IF NOT EXISTS` sem apagar dados.
+Crie tambem o arquivo `frontend/.env` a partir de `frontend/.env.example`:
 
-- Normalização **B.3** do título: [`src/app/regras/titulo.py`](src/app/regras/titulo.py) (`normalizar_titulo`).
-- Persistência de quiz: [`src/app/repos/quizzes_repo.py`](src/app/repos/quizzes_repo.py). Título duplicado para o mesmo docente gera `sqlite3.IntegrityError`.
+```env
+API_URL=http://127.0.0.1:8000
+```
 
-**Sugestão para o PDF do TCC:** print do esquema no DB Browser (ou similar), trecho do DDL com a unicidade e um texto ligando DER ↔ SQL.
+## Instalacao
 
----
+```bash
+pip install -r backend/requirements.txt
+pip install -r frontend/requirements.txt
+```
 
-## Ciclo 1.3 — Interface (login → quiz)
+## Execucao
 
-Docentes têm **`papel`** no banco: `adm` (único que vê **Cadastrar outro docente**) ou `prof`. No seed, **Jackson Matiazzi** é `adm` — edite e-mail/PIN em `inicializacao_local/seed_docentes.py` se precisar.
+Na raiz do projeto:
 
-1. (Opcional) `python inicializacao_local/seed_docentes.py`
-2. (Opcional) `python inicializacao_local/seed_quizzes.py` — usa o e-mail configurado no script (ex.: Maria do seed); precisa desse docente no banco.
-3. `python main.py`
+```bash
+python launcher.py
+```
 
-Fluxo mínimo: **login** (e-mail + PIN) → **início** → **Criar / editar quiz** → salvar (título e, se quiser, primeira pergunta com duas alternativas). Dois quizzes com o mesmo título “normalizado” para o mesmo docente devem acusar duplicata.
+Esse comando inicia o backend e abre o aplicativo do professor. O aplicativo do aluno tambem pode ser iniciado separadamente:
 
-**Sugestão para o PDF:** sequência de telas do login até salvar um quiz; citar o `ScreenManager` em [`src/app/main.py`](src/app/main.py).
+```bash
+cd frontend/aluno
+python -m app.main
+```
+
+## Observacoes de desenvolvimento
+
+Arquivos locais como `.env`, bancos `.db`, caches `__pycache__` e builds gerados pelo Flet nao devem ser commitados. O projeto mantem esses arquivos no `.gitignore` para preservar apenas codigo-fonte, configuracoes de exemplo e documentacao.
