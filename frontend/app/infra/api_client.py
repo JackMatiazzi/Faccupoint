@@ -21,7 +21,9 @@ def _req(method: str, path: str, **kwargs) -> dict | list:
     if _TOKEN:
         headers["Authorization"] = f"Bearer {_TOKEN}"
     try:
-        r = requests.request(method, f"{_BASE}{path}", timeout=10, headers=headers, **kwargs)
+        r = requests.request(method, f"{_BASE}{path}", timeout=60, headers=headers, **kwargs)
+    except requests.Timeout:
+        raise ApiError(0, "backend demorou para responder")
     except requests.ConnectionError:
         raise ApiError(0, "backend fora do ar")
     if not r.ok:
@@ -51,6 +53,10 @@ def auth_headers() -> dict[str, str]:
     if not _TOKEN:
         return {}
     return {"Authorization": f"Bearer {_TOKEN}"}
+
+
+def auth_token() -> str | None:
+    return _TOKEN
 
 
 def login(email: str, pin: str) -> Docente:

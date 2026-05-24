@@ -4,15 +4,17 @@ import asyncio
 import json
 import logging
 import os
+import re
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from backend.email_relatorio import enviar_relatorio_sessao
 from backend.banco import (
     atualizar_pergunta_atual_sessao,
     buscar_docente_do_quiz,
+    buscar_docente_por_id,
     buscar_tempo_quiz,
     listar_perguntas_do_quiz,
     registrar_participante_sessao,
@@ -20,6 +22,7 @@ from backend.banco import (
     registrar_tentativa,
 )
 from backend.rotas import docente_atual
+from backend.seguranca import verificar_token_docente
 from backend.sessao import Participante, criar_sessao, gerar_codigo_sessao, obter_sessao
 
 load_dotenv()
@@ -69,7 +72,7 @@ async def _rodar_questao(codigo: str) -> None:
     pergunta = sessao.pergunta_atual()
     if not pergunta:
         return
-    atualizar_pergunta_atual_sessao(sessao.id_sessao, sessao.questao_atual)
+    await asyncio.to_thread(atualizar_pergunta_atual_sessao, sessao.id_sessao, sessao.questao_atual)
     logger.info(
         "sala %s rodando questao %s de %s",
         codigo,
@@ -132,13 +135,18 @@ async def _revelar_resultado(codigo: str) -> None:
     }
     mortos = []
     for p in sessao.participantes.values():
+        respondeu = p.resposta_atual is not None
+        payload_aluno = {
+            **resultado,
+            "sua_resposta": p.resposta_atual,
+            "acertou": p.resposta_atual in indices_corretos,
+            "pontos": p.pontos,
+        }
+        if not respondeu:
+            payload_aluno.pop("indice_correto", None)
+            payload_aluno.pop("indices_corretos", None)
         try:
-            await p.ws.send_json({
-                **resultado,
-                "sua_resposta": p.resposta_atual,
-                "acertou": p.resposta_atual in indices_corretos,
-                "pontos": p.pontos,
-            })
+            await p.ws.send_json(payload_aluno)
         except WebSocketDisconnect:
             logger.info("aluno %s desconectou antes de receber o resultado", p.apelido)
             mortos.append(p.apelido)
@@ -179,10 +187,10 @@ async def _encerrar(codigo: str) -> None:
 
 @router.post("/sessoes", tags=["sessao"])
 async def criar(corpo: CriarSessaoEntrada, atual: dict = Depends(docente_atual)):
-    perguntas = listar_perguntas_do_quiz(corpo.id_quiz)
+    perguntas = await asyncio.to_thread(listar_perguntas_do_quiz, corpo.id_quiz)
     if not perguntas:
         raise HTTPException(status_code=400, detail="quiz sem perguntas")
-    id_docente_proprietario = buscar_docente_do_quiz(corpo.id_quiz)
+    id_docente_proprietario = await asyncio.to_thread(buscar_docente_do_quiz, corpo.id_quiz)
     if id_docente_proprietario is None:
         raise HTTPException(status_code=400, detail="quiz nao encontrado")
     if (
@@ -192,9 +200,9 @@ async def criar(corpo: CriarSessaoEntrada, atual: dict = Depends(docente_atual))
         raise HTTPException(status_code=403, detail="sem permissao")
     if int(atual["id_docente"]) != id_docente_proprietario:
         raise HTTPException(status_code=403, detail="sem permissao")
-    tempo = buscar_tempo_quiz(corpo.id_quiz) or TEMPO_QUESTAO
+    tempo = await asyncio.to_thread(buscar_tempo_quiz, corpo.id_quiz) or TEMPO_QUESTAO
     codigo = gerar_codigo_sessao()
-    id_sessao = registrar_sessao(codigo, corpo.id_quiz, id_docente_proprietario)
+    id_sessao = await asyncio.to_thread(registrar_sessao, codigo, corpo.id_quiz, id_docente_proprietario)
     criar_sessao(codigo, id_sessao, id_docente_proprietario, corpo.id_quiz, perguntas, tempo)
     logger.info("sala %s aberta para quiz %s com %s pergunta(s)", codigo, corpo.id_quiz, len(perguntas))
     return {"codigo": codigo}
@@ -241,16 +249,29 @@ def info(codigo: str):
     return {
         "codigo": codigo,
         "status": sessao.status,
-        "participantes": list(sessao.participantes.keys()),
+        "total_participantes": sessao.total_participantes(),
         "total_perguntas": len(sessao.perguntas),
     }
 
 
 @router.websocket("/ws/professor/{codigo}")
-async def ws_professor(ws: WebSocket, codigo: str):
+async def ws_professor(ws: WebSocket, codigo: str, token: str = Query(...)):
+    payload = verificar_token_docente(token)
+    if payload is None:
+        await ws.close(code=4008)
+        return
+    try:
+        id_docente = int(payload["id_docente"])
+    except (KeyError, TypeError, ValueError):
+        await ws.close(code=4008)
+        return
+    docente = await asyncio.to_thread(buscar_docente_por_id, id_docente)
+    if docente is None:
+        await ws.close(code=4008)
+        return
     sessao = obter_sessao(codigo)
-    if not sessao:
-        await ws.close(code=4004)
+    if not sessao or id_docente != sessao.id_docente:
+        await ws.close(code=4003)
         return
     await ws.accept()
     sessao.professor_ws = ws
@@ -273,13 +294,13 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     apelido = None
     try:
         dados = json.loads(await ws.receive_text())
-        apelido = dados.get("apelido", "").strip()[:20]
+        apelido = re.sub(r"[^\w\s\-]", "", dados.get("apelido", ""), flags=re.UNICODE).strip()[:20]
         if not apelido or apelido in sessao.participantes:
             await ws.send_json({"tipo": "erro", "mensagem": "apelido invalido ou ja em uso"})
             await ws.close()
             return
 
-        id_participante = registrar_participante_sessao(sessao.id_sessao, apelido)
+        id_participante = await asyncio.to_thread(registrar_participante_sessao, sessao.id_sessao, apelido)
         sessao.participantes[apelido] = Participante(apelido=apelido, ws=ws, id_participante=id_participante)
         logger.info("sala %s: %s entrou", codigo, apelido)
         lista = list(sessao.participantes.keys())
@@ -292,14 +313,18 @@ async def ws_aluno(ws: WebSocket, codigo: str):
             if dados.get("tipo") == "resposta" and sessao.status == "rodando":
                 p = sessao.participantes.get(apelido)
                 if p and p.resposta_atual is None:
-                    indice = int(dados["indice"])
+                    try:
+                        indice = int(dados["indice"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
                     pergunta = sessao.pergunta_atual()
                     alternativas = pergunta["alternativas"] if pergunta else []
                     alternativa = alternativas[indice] if 0 <= indice < len(alternativas) else None
                     acertou = bool(alternativa and alternativa["correta"])
                     p.resposta_atual = indice
                     if p.id_participante is not None and pergunta:
-                        registrar_tentativa(
+                        await asyncio.to_thread(
+                            registrar_tentativa,
                             p.id_participante,
                             pergunta["id_pergunta"],
                             alternativa["id"] if alternativa else None,

@@ -58,14 +58,16 @@ def _matar_porta(porta: int) -> None:
 def main() -> None:
     print("abrindo o faccupoint")
     porta_aluno = int(os.getenv("PORTA_ALUNO", "8081"))
+    porta_api = int(os.getenv("API_PORT", "8000"))
     _matar_porta(porta_aluno)
+    _matar_porta(porta_api)
 
     backend = _iniciar(["-m", "backend.main"], ROOT)
     aluno = subprocess.Popen(
         [PYTHON, "-m", "app.main"],
         cwd=ROOT / "frontend" / "aluno",
     )
-    time.sleep(2)
+    time.sleep(4)
 
     professor = subprocess.Popen(
         [PYTHON, "-m", "app.main"],

@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import socket
+from urllib.parse import quote
 
 import flet as ft
 import qrcode
@@ -15,7 +16,7 @@ from app.design_system.tokens import (
     FONT_CODE, SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
     TEXT_SUCCESS,
 )
-from app.infra.api_client import ApiError, auth_headers, listar_quizzes_do_docente
+from app.infra.api_client import ApiError, auth_headers, auth_token, listar_quizzes_do_docente
 import requests
 import os
 from dotenv import load_dotenv
@@ -159,7 +160,14 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             t += 1
 
     async def _conectar_ws_professor(codigo: str) -> None:
-        uri = f"ws://{_BASE.replace('http://', '').replace('https://', '')}/ws/professor/{codigo}"
+        token = auth_token()
+        if not token:
+            status_text.value = "Sessao expirada"
+            page.update()
+            return
+        esquema = "wss" if _BASE.startswith("https://") else "ws"
+        base_ws = _BASE.replace("http://", "").replace("https://", "")
+        uri = f"{esquema}://{base_ws}/ws/professor/{codigo}?token={quote(token)}"
         try:
             async with websockets.connect(uri) as ws:
                 async for texto in ws:

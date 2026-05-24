@@ -1,7 +1,35 @@
 from __future__ import annotations
 
+import threading
+import time
+from collections import defaultdict
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
+
+_tentativas_login: dict[str, list[float]] = defaultdict(list)
+_lock_login = threading.Lock()
+_MAX_TENTATIVAS_LOGIN = 5
+_JANELA_LOGIN_SEGUNDOS = 60
+
+
+def _checar_rate_limit_login(email: str) -> None:
+    agora = time.monotonic()
+    with _lock_login:
+        tentativas = _tentativas_login[email]
+        tentativas[:] = [t for t in tentativas if agora - t < _JANELA_LOGIN_SEGUNDOS]
+        if len(tentativas) >= _MAX_TENTATIVAS_LOGIN:
+            raise HTTPException(status_code=429, detail="muitas tentativas, aguarde um minuto")
+
+
+def _registrar_falha_login(email: str) -> None:
+    with _lock_login:
+        _tentativas_login[email].append(time.monotonic())
+
+
+def _limpar_falhas_login(email: str) -> None:
+    with _lock_login:
+        _tentativas_login.pop(email, None)
 
 from backend.banco import (
     ADM, PROF,
@@ -9,6 +37,7 @@ from backend.banco import (
     atualizar_quiz,
     buscar_docente_do_quiz,
     buscar_docente_por_email,
+    buscar_docente_por_id,
     cadastrar_docente,
     cadastrar_pergunta,
     cadastrar_quiz,
@@ -44,7 +73,19 @@ def docente_atual(authorization: str | None = Header(default=None)) -> dict:
     payload = verificar_token_docente(token)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="sessao expirada")
-    return payload
+    try:
+        id_docente = int(payload["id_docente"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="sessao invalida")
+    docente = buscar_docente_por_id(id_docente)
+    if docente is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="sessao invalida")
+    return {
+        "id_docente": docente[0],
+        "nome": docente[1],
+        "email": docente[2],
+        "papel": docente[3],
+    }
 
 
 def admin_atual(atual: dict = Depends(docente_atual)) -> dict:
@@ -59,9 +100,13 @@ def _id_docente(atual: dict) -> int:
 
 @router.post("/auth/login", response_model=LoginSaida, tags=["auth"])
 def login(corpo: LoginEntrada):
-    docente = buscar_docente_por_email(corpo.email)
+    email = corpo.email.strip().lower()
+    _checar_rate_limit_login(email)
+    docente = buscar_docente_por_email(email)
     if docente is None or not verificar_pin(corpo.pin, docente[3]):
+        _registrar_falha_login(email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="email ou pin incorretos")
+    _limpar_falhas_login(email)
     token = gerar_token_docente(docente[0], docente[2], docente[4])
     return LoginSaida(id_docente=docente[0], nome=docente[1], email=docente[2], papel=docente[4], token=token)
 
@@ -218,7 +263,9 @@ def atualizar_pergunta_rota(id_quiz: int, id_pergunta: int, corpo: PerguntaEntra
 
 
 @router.get("/quizzes/{id_quiz}/perguntas", tags=["quizzes"])
-def listar_perguntas_rota(id_quiz: int):
+def listar_perguntas_rota(id_quiz: int, atual: dict = Depends(docente_atual)):
+    if buscar_docente_do_quiz(id_quiz) != _id_docente(atual) and atual.get("papel") != ADM:
+        raise HTTPException(status_code=403, detail="sem permissao")
     return listar_perguntas_do_quiz(id_quiz)
 
 

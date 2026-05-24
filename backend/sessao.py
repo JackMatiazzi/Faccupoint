@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import secrets
 import string
 from dataclasses import dataclass, field
 
@@ -53,9 +53,14 @@ class Sessao:
 _sessoes: dict[str, Sessao] = {}
 
 
+_CHARS_CODIGO = "".join(
+    c for c in string.ascii_uppercase + string.digits if c not in "OI01"
+)
+
+
 def gerar_codigo_sessao() -> str:
     while True:
-        codigo = "".join(random.choices(string.digits, k=4))
+        codigo = "".join(secrets.choice(_CHARS_CODIGO) for _ in range(6))
         if codigo not in _sessoes:
             return codigo
 

@@ -20,7 +20,8 @@ def _conectar():
     if not url:
         raise RuntimeError("DATABASE_URL não definida no .env")
     schema = os.environ.get("DB_SCHEMA")
-    conn = psycopg2.connect(url)
+    connect_timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "5"))
+    conn = psycopg2.connect(url, connect_timeout=connect_timeout)
     if schema:
         with conn.cursor() as cur:
             cur.execute("SET search_path TO %s", (schema,))
@@ -32,9 +33,18 @@ def _normalizar_papel(val: str) -> str:
     v = (val or "").strip().lower()
     if v in ("admin", ADM):
         return ADM
-    if v in ("professor", PROF):
+    if v in ("professor", PROF, ""):
         return PROF
-    return v or PROF
+    raise ValueError(f"Papel desconhecido no banco: {v!r}")
+
+
+def _validar_link_midia(link: str | None) -> str | None:
+    if not link:
+        return None
+    url = link.strip()
+    if not url.startswith("https://"):
+        raise ValueError("link_midia deve começar com https://")
+    return url
 
 
 def listar_docentes() -> list[tuple[int, str, str, str]]:
@@ -61,6 +71,22 @@ def buscar_docente_por_email(email: str) -> tuple[int, str, str, str, str] | Non
             if row is None:
                 return None
             return int(row[0]), str(row[1]), str(row[2]), str(row[3]), _normalizar_papel(row[4])
+    finally:
+        conn.close()
+
+
+def buscar_docente_por_id(id_docente: int) -> tuple[int, str, str, str] | None:
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id_docente, nome, email, COALESCE(papel, 'prof') FROM docentes WHERE id_docente = %s",
+                (id_docente,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return int(row[0]), str(row[1]), str(row[2]), _normalizar_papel(row[3])
     finally:
         conn.close()
 
@@ -481,7 +507,7 @@ def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternati
         raise ValueError("Preencha o enunciado e pelo menos duas alternativas.")
     if not any(a["correta"] for a in alternativas_limpas):
         raise ValueError("Marque pelo menos uma alternativa correta.")
-    midia = link_midia.strip() if link_midia else None
+    midia = _validar_link_midia(link_midia)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
@@ -513,7 +539,7 @@ def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], l
         raise ValueError("Preencha o enunciado e pelo menos duas alternativas.")
     if not any(a["correta"] for a in alternativas_limpas):
         raise ValueError("Marque pelo menos uma alternativa correta.")
-    midia = link_midia.strip() if link_midia else None
+    midia = _validar_link_midia(link_midia)
     conn = _conectar()
     try:
         with conn.cursor() as cur:

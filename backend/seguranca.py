@@ -32,7 +32,9 @@ def verificar_pin(pin: str, hash_armazenado: str) -> bool:
 
 
 def _chave_token() -> bytes:
-    segredo = os.getenv("SECRET_KEY", "REDACTED")
+    segredo = os.environ.get("SECRET_KEY")
+    if not segredo:
+        raise RuntimeError("SECRET_KEY não definida no ambiente")
     return segredo.encode("utf-8")
 
 

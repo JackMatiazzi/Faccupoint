@@ -15,6 +15,19 @@ from app.infra.api_client import ApiError
 def tela_login(page: ft.Page) -> ft.View:
     erro = ft.Text("", color=TEXT_DANGER, size=FONT_CAPTION)
 
+    aviso_conexao = ft.Row(
+        visible=False,
+        alignment=ft.MainAxisAlignment.CENTER,
+        controls=[
+            ft.Icon(ft.Icons.INFO_OUTLINE, color=TEXT_SECONDARY, size=14),
+            ft.Text(
+                "Primeira conexão com o banco, pode demorar de 1 a 2 min",
+                color=TEXT_SECONDARY,
+                size=FONT_CAPTION,
+            ),
+        ],
+    )
+
     campo_email = campo("Email", hint_text="seu@email.com", keyboard_type=ft.KeyboardType.EMAIL)
     campo_pin = campo("PIN", hint_text="4 dígitos", password=True, can_reveal_password=True,
                       keyboard_type=ft.KeyboardType.NUMBER, max_length=4)
@@ -42,10 +55,16 @@ def tela_login(page: ft.Page) -> ft.View:
             page.update()
             return
 
+        aviso_conexao.visible = True
+        btn_entrar.disabled = True
+        page.update()
+
         try:
             docente = api.login(email, pin)
         except ApiError as ex:
             erro.value = ex.detail
+            aviso_conexao.visible = False
+            btn_entrar.disabled = False
             page.update()
             return
 
@@ -74,6 +93,7 @@ def tela_login(page: ft.Page) -> ft.View:
                 campo_pin,
                 erro,
                 btn_entrar,
+                aviso_conexao,
             ],
         ),
     )
