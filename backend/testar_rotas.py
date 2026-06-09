@@ -2,7 +2,6 @@
 Rodar: python -m backend.testar_rotas
 Requer o servidor fora do ar (usa TestClient interno, sem porta).
 """
-from __future__ import annotations
 
 import sys
 
@@ -39,12 +38,10 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-# ---------------------------------------------------------------------------
 print("\n=== health ===")
 r = client.get("/health")
 checar("GET /health", 200, r.status_code)
 
-# ---------------------------------------------------------------------------
 print("\n=== auth ===")
 r = client.post("/auth/login", json={"email": "nao@existe.com", "pin": "0000"})
 checar("login com credencial errada -> 401", 401, r.status_code, r.json())
@@ -52,7 +49,6 @@ checar("login com credencial errada -> 401", 401, r.status_code, r.json())
 r = client.post("/auth/login", json={"email": "", "pin": ""})
 checar("login com campos vazios -> 401 ou 422", r.status_code in (401, 422) and r.status_code or 401, r.status_code)
 
-# ---------------------------------------------------------------------------
 print("\n=== rotas protegidas sem token ===")
 r = client.get("/quizzes", params={"id_docente": 1})
 checar("GET /quizzes sem token -> 401", 401, r.status_code, r.json())
@@ -66,15 +62,13 @@ checar("POST /sessoes sem token -> 401", 401, r.status_code, r.json())
 r = client.get("/docentes")
 checar("GET /docentes sem token -> 401", 401, r.status_code, r.json())
 
-# ---------------------------------------------------------------------------
 print("\n=== token invalido ===")
 headers_falsos = {"Authorization": "Bearer token.invalido"}
 r = client.get("/quizzes", params={"id_docente": 1}, headers=headers_falsos)
 checar("GET /quizzes com token falso -> 401", 401, r.status_code, r.json())
 
-# ---------------------------------------------------------------------------
 print("\n=== login real (lê credenciais do .env via banco) ===")
-print("  (se não houver docente cadastrado no banco, esses testes vão falhar — é esperado)")
+print("  (se não houver docente cadastrado no banco, esses testes vão falhar; é esperado)")
 
 import os
 from dotenv import load_dotenv
@@ -91,12 +85,11 @@ if EMAIL_TESTE and PIN_TESTE:
         r = client.get("/quizzes", params={"id_docente": 1}, headers=_auth(token))
         checar("GET /quizzes com token valido -> 200 ou 403", r.status_code in (200, 403) and r.status_code or 200, r.status_code)
 else:
-    print("  (sem EMAIL_TESTE/PIN_TESTE no .env — pulando testes autenticados)")
+    print("  (sem EMAIL_TESTE/PIN_TESTE no .env; pulando testes autenticados)")
     print("  Adicione ao backend/.env:")
     print("    EMAIL_TESTE=seu@email.com")
     print("    PIN_TESTE=1234")
 
-# ---------------------------------------------------------------------------
 print(f"\n=== resultado: {_ok} ok, {_falhas} falha(s) ===\n")
 if _falhas:
     sys.exit(1)

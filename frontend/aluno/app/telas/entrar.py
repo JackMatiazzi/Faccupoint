@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import re
 from urllib.parse import parse_qs, urlparse
@@ -81,12 +80,12 @@ def tela_entrar(page: ft.Page) -> ft.View:
     campo_apelido.on_submit = entrar
 
     card = ft.Container(
-        width=CARD_W,
         padding=ft.padding.all(CARD_PADDING),
         bgcolor=BG_CARD,
         border_radius=CARD_RADIUS,
         content=ft.Column(
             spacing=SPACE_MD,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             controls=[
                 ft.Text("FaccuPoint", size=FONT_DISPLAY, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
                 ft.Text("Entre com o codigo da aula", size=FONT_CAPTION, color=TEXT_SECONDARY),
@@ -96,7 +95,7 @@ def tela_entrar(page: ft.Page) -> ft.View:
                 erro,
                 ft.ElevatedButton(
                     text="Entrar", bgcolor=ACCENT, color=TEXT_PRIMARY,
-                    width=CARD_W, height=BTN_H,
+                    height=BTN_H,
                     style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
                     on_click=entrar,
                 ),
@@ -107,6 +106,13 @@ def tela_entrar(page: ft.Page) -> ft.View:
     return ft.View(
         route="/",
         bgcolor=BG_PAGE,
-        padding=0,
-        controls=[ft.Container(expand=True, alignment=ft.alignment.center, content=card)],
+        padding=ft.padding.all(SPACE_MD),
+        controls=[
+            ft.Column(
+                expand=True,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[card],
+            )
+        ],
     )

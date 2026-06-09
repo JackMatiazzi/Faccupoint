@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import threading
 import time
@@ -157,6 +156,7 @@ class QuizSaida(BaseModel):
     id_docente_proprietario: int
     tempo_segundos: int | None = None
     nome_docente: str | None = None
+    link_midia: str | None = None
 
 
 class CadastrarQuizEntrada(BaseModel):
@@ -164,6 +164,7 @@ class CadastrarQuizEntrada(BaseModel):
     titulo: str
     descricao: str | None = None
     tempo_segundos: int | None = None
+    link_midia: str | None = None
 
 
 class AtualizarQuizEntrada(BaseModel):
@@ -171,6 +172,7 @@ class AtualizarQuizEntrada(BaseModel):
     titulo: str
     descricao: str | None = None
     tempo_segundos: int | None = None
+    link_midia: str | None = None
 
 
 class AlternativaEntrada(BaseModel):
@@ -192,7 +194,7 @@ class CopiarQuizEntrada(BaseModel):
 def listar_quiz(id_docente: int, atual: dict = Depends(docente_atual)):
     if id_docente != _id_docente(atual) and atual.get("papel") != ADM:
         raise HTTPException(status_code=403, detail="sem acesso")
-    return [QuizSaida(id_quiz=r[0], titulo=r[1], descricao=r[2], id_docente_proprietario=r[3], tempo_segundos=r[4]) for r in listar_quizzes(id_docente)]
+    return [QuizSaida(id_quiz=r[0], titulo=r[1], descricao=r[2], id_docente_proprietario=r[3], tempo_segundos=r[4], link_midia=r[5]) for r in listar_quizzes(id_docente)]
 
 
 @router.get("/quizzes/compartilhados", response_model=list[QuizSaida], tags=["quizzes"])
@@ -207,6 +209,7 @@ def listar_compartilhados(id_docente: int, termo: str = "", atual: dict = Depend
             id_docente_proprietario=r[3],
             tempo_segundos=r[4],
             nome_docente=r[5],
+            link_midia=r[6],
         )
         for r in listar_quizzes_compartilhados(id_docente, termo)
     ]
@@ -217,7 +220,7 @@ def cadastrar_quiz_rota(corpo: CadastrarQuizEntrada, atual: dict = Depends(docen
     if corpo.id_docente_proprietario != _id_docente(atual):
         raise HTTPException(status_code=403, detail="sem permissao")
     try:
-        id_quiz = cadastrar_quiz(corpo.id_docente_proprietario, corpo.titulo, corpo.descricao, corpo.tempo_segundos)
+        id_quiz = cadastrar_quiz(corpo.id_docente_proprietario, corpo.titulo, corpo.descricao, corpo.tempo_segundos, corpo.link_midia)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"id": id_quiz}
@@ -239,7 +242,7 @@ def atualizar_quiz_rota(id_quiz: int, corpo: AtualizarQuizEntrada, atual: dict =
     if corpo.id_docente_proprietario != _id_docente(atual):
         raise HTTPException(status_code=403, detail="sem permissao")
     try:
-        atualizar_quiz(id_quiz, corpo.id_docente_proprietario, corpo.titulo, corpo.descricao, corpo.tempo_segundos)
+        atualizar_quiz(id_quiz, corpo.id_docente_proprietario, corpo.titulo, corpo.descricao, corpo.tempo_segundos, corpo.link_midia)
     except (PermissionError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}

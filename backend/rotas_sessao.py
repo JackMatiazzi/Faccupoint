@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import asyncio
 import json
@@ -15,6 +14,7 @@ from backend.banco import (
     atualizar_pergunta_atual_sessao,
     buscar_docente_do_quiz,
     buscar_docente_por_id,
+    buscar_link_midia_quiz,
     buscar_tempo_quiz,
     listar_perguntas_do_quiz,
     registrar_participante_sessao,
@@ -91,6 +91,7 @@ async def _rodar_questao(codigo: str) -> None:
         "enunciado": pergunta["enunciado"],
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": tempo,
+        "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
     }
     await _broadcast_alunos(sessao, msg_questao)
     await _enviar_professor(sessao, {**msg_questao, "tipo": "questao_professor"})
@@ -201,9 +202,10 @@ async def criar(corpo: CriarSessaoEntrada, atual: dict = Depends(docente_atual))
     if int(atual["id_docente"]) != id_docente_proprietario:
         raise HTTPException(status_code=403, detail="sem permissao")
     tempo = await asyncio.to_thread(buscar_tempo_quiz, corpo.id_quiz) or TEMPO_QUESTAO
+    quiz_link_midia = await asyncio.to_thread(buscar_link_midia_quiz, corpo.id_quiz)
     codigo = gerar_codigo_sessao()
     id_sessao = await asyncio.to_thread(registrar_sessao, codigo, corpo.id_quiz, id_docente_proprietario)
-    criar_sessao(codigo, id_sessao, id_docente_proprietario, corpo.id_quiz, perguntas, tempo)
+    criar_sessao(codigo, id_sessao, id_docente_proprietario, corpo.id_quiz, perguntas, tempo, quiz_link_midia)
     logger.info("sala %s aberta para quiz %s com %s pergunta(s)", codigo, corpo.id_quiz, len(perguntas))
     return {"codigo": codigo}
 

@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import subprocess
 import sys
@@ -32,7 +31,7 @@ def _matar_porta(porta: int) -> None:
     except Exception:
         return
 
-    pids: set[str] = set()
+    pids = set()
     alvo = f":{porta}"
     for linha in saida.splitlines():
         partes = linha.split()

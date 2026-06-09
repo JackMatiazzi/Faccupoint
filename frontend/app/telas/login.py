@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import flet as ft
 
@@ -73,7 +72,7 @@ def tela_login(page: ft.Page) -> ft.View:
         page.docente_email = docente.email
         page.docente_papel = docente.papel
 
-        page.go("/criacao-quiz")
+        page.go("/painel-professor")
 
     btn_entrar.on_click = entrar
     campo_pin.on_submit = entrar

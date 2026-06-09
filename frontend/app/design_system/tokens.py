@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import flet as ft
 
@@ -29,13 +28,13 @@ G48 = 48
 G64 = 64
 
 # tipografia
-FONT_CAPTION    = G12       # legenda, erro, hint
-FONT_BODY       = G16       # texto padrão
-FONT_TITLE      = G16 + G4  # título de card (20)
-FONT_SUBHEADING = G16 + G4  # alias de FONT_TITLE
-FONT_HEADING    = G24       # cabeçalho de seção
-FONT_DISPLAY    = G32       # título principal de tela
-FONT_CODE       = G48       # código de sala
+FONT_CAPTION    = G12
+FONT_BODY       = G16
+FONT_TITLE      = G16 + G4
+FONT_SUBHEADING = G16 + G4
+FONT_HEADING    = G24
+FONT_DISPLAY    = G32
+FONT_CODE       = G48
 
 # estilos de texto
 T_DISPLAY = {"size": FONT_DISPLAY, "weight": ft.FontWeight.BOLD,  "color": TEXT_PRIMARY}
@@ -48,7 +47,7 @@ T_SUCESSO = {"size": FONT_CAPTION,                                 "color": TEXT
 T_CODE    = {"size": FONT_CODE,    "weight": ft.FontWeight.BOLD,  "color": ACCENT}
 
 # layout
-CARD_W          = G32 * 12 + G16   # 400
+CARD_W          = G32 * 12 + G16
 CARD_PADDING    = G32
 CARD_PADDING_SM = G24
 SPACE_MD        = G16
@@ -57,5 +56,5 @@ BTN_RADIUS      = G8
 
 # componentes
 BTN_H         = G48
-BTN_QUESTAO_H = G8 * 7   # 56
+BTN_QUESTAO_H = G8 * 7
 INPUT_H       = G48

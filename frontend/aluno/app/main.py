@@ -1,6 +1,8 @@
-from __future__ import annotations
 
+import asyncio
 import sys
+import threading
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -44,6 +46,7 @@ def main(page: ft.Page) -> None:
     page.sessao_apelido = ""
     page.sessao_ip = "127.0.0.1"
     page.sessao_porta = _query_valor(page, "api") or "8000"
+    page._ws_queue = asyncio.Queue()
 
     def route_change(e: ft.RouteChangeEvent) -> None:
         page.views.clear()
@@ -67,6 +70,24 @@ def main(page: ft.Page) -> None:
             page.go(top.route)
         else:
             page.go("/")
+
+    _ativo = [True]
+
+    def _keepalive():
+        while _ativo[0]:
+            time.sleep(30)
+            if not _ativo[0]:
+                break
+            try:
+                page.update()
+            except Exception:
+                break
+
+    def _ao_fechar(e=None):
+        _ativo[0] = False
+
+    page.on_close = _ao_fechar
+    threading.Thread(target=_keepalive, daemon=True).start()
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop

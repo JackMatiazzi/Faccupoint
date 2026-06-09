@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import secrets
 import string
@@ -23,6 +22,7 @@ class Sessao:
     id_docente: int
     id_quiz: int
     perguntas: list[dict]
+    quiz_link_midia: str | None = None
     tempo_questao: int = 20
     status: str = "lobby"
     questao_atual: int = -1
@@ -65,13 +65,14 @@ def gerar_codigo_sessao() -> str:
             return codigo
 
 
-def criar_sessao(codigo: str, id_sessao: int, id_docente: int, id_quiz: int, perguntas: list[dict], tempo_questao: int = 20) -> str:
+def criar_sessao(codigo: str, id_sessao: int, id_docente: int, id_quiz: int, perguntas: list[dict], tempo_questao: int = 20, quiz_link_midia: str | None = None) -> str:
     _sessoes[codigo] = Sessao(
         codigo=codigo,
         id_sessao=id_sessao,
         id_docente=id_docente,
         id_quiz=id_quiz,
         perguntas=perguntas,
+        quiz_link_midia=quiz_link_midia,
         tempo_questao=tempo_questao,
     )
     return codigo

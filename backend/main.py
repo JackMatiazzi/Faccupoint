@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.banco import migrar_schema
 from backend.rotas import router
 from backend.rotas_sessao import router as router_sessao
 
@@ -20,6 +21,8 @@ def _cors_origins() -> list[str]:
     valor = os.getenv("CORS_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000")
     return [origem.strip() for origem in valor.split(",") if origem.strip()]
 
+
+migrar_schema()
 
 app = FastAPI(title="Faccupoint API", version="0.1.0")
 

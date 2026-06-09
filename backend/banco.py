@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import os
 
@@ -168,20 +167,30 @@ def excluir_docente(id_alvo: int, id_admin: int) -> None:
         conn.close()
 
 
-def listar_quizzes(id_docente: int) -> list[tuple[int, str, str | None, int, int | None]]:
+def migrar_schema() -> None:
     conn = _conectar()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id_quiz, titulo, descricao, id_docente_proprietario, tempo_segundos FROM quizzes WHERE id_docente_proprietario = %s ORDER BY titulo",
-                (id_docente,),
-            )
-            return [(int(r[0]), str(r[1]), r[2], int(r[3]), r[4]) for r in cur.fetchall()]
+            cur.execute("ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS link_midia VARCHAR")
+        conn.commit()
     finally:
         conn.close()
 
 
-def listar_quizzes_compartilhados(id_docente: int, termo: str = "") -> list[tuple[int, str, str | None, int, int | None, str]]:
+def listar_quizzes(id_docente: int) -> list[tuple[int, str, str | None, int, int | None, str | None]]:
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id_quiz, titulo, descricao, id_docente_proprietario, tempo_segundos, link_midia FROM quizzes WHERE id_docente_proprietario = %s ORDER BY titulo",
+                (id_docente,),
+            )
+            return [(int(r[0]), str(r[1]), r[2], int(r[3]), r[4], r[5]) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def listar_quizzes_compartilhados(id_docente: int, termo: str = "") -> list[tuple[int, str, str | None, int, int | None, str, str | None]]:
     busca = f"%{termo.strip()}%"
     conn = _conectar()
     try:
@@ -189,7 +198,7 @@ def listar_quizzes_compartilhados(id_docente: int, termo: str = "") -> list[tupl
             cur.execute(
                 """
                 SELECT q.id_quiz, q.titulo, q.descricao, q.id_docente_proprietario,
-                       q.tempo_segundos, d.nome
+                       q.tempo_segundos, d.nome, q.link_midia
                 FROM quizzes q
                 JOIN docentes d ON d.id_docente = q.id_docente_proprietario
                 WHERE q.id_docente_proprietario <> %s
@@ -200,7 +209,7 @@ def listar_quizzes_compartilhados(id_docente: int, termo: str = "") -> list[tupl
                 (id_docente, busca, busca, busca),
             )
             return [
-                (int(r[0]), str(r[1]), r[2], int(r[3]), r[4], str(r[5]))
+                (int(r[0]), str(r[1]), r[2], int(r[3]), r[4], str(r[5]), r[6])
                 for r in cur.fetchall()
             ]
     finally:
@@ -212,7 +221,7 @@ def copiar_quiz(id_quiz_origem: int, id_docente_destino: int) -> int:
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT titulo, descricao, tempo_segundos FROM quizzes WHERE id_quiz = %s",
+                "SELECT titulo, descricao, tempo_segundos, link_midia FROM quizzes WHERE id_quiz = %s",
                 (id_quiz_origem,),
             )
             quiz = cur.fetchone()
@@ -234,11 +243,11 @@ def copiar_quiz(id_quiz_origem: int, id_docente_destino: int) -> int:
 
             cur.execute(
                 """
-                INSERT INTO quizzes (titulo, descricao, id_docente_proprietario, tempo_segundos)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO quizzes (titulo, descricao, id_docente_proprietario, tempo_segundos, link_midia)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id_quiz
                 """,
-                (titulo, quiz[1], id_docente_destino, quiz[2]),
+                (titulo, quiz[1], id_docente_destino, quiz[2], quiz[3]),
             )
             id_quiz_novo = int(cur.fetchone()[0])
 
@@ -438,17 +447,29 @@ def buscar_relatorio_sessao(id_sessao: int) -> dict | None:
         conn.close()
 
 
-def cadastrar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None) -> int:
+def buscar_link_midia_quiz(id_quiz: int) -> str | None:
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT link_midia FROM quizzes WHERE id_quiz = %s", (id_quiz,))
+            row = cur.fetchone()
+            return str(row[0]) if row and row[0] else None
+    finally:
+        conn.close()
+
+
+def cadastrar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> int:
     titulo = titulo.strip()
     if not titulo:
         raise ValueError("Título não pode ser vazio.")
     desc = descricao.strip() if descricao else None
+    midia = _validar_link_midia(link_midia)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO quizzes (titulo, descricao, id_docente_proprietario, tempo_segundos) VALUES (%s, %s, %s, %s) RETURNING id_quiz",
-                (titulo, desc, id_docente, tempo_segundos),
+                "INSERT INTO quizzes (titulo, descricao, id_docente_proprietario, tempo_segundos, link_midia) VALUES (%s, %s, %s, %s, %s) RETURNING id_quiz",
+                (titulo, desc, id_docente, tempo_segundos, midia),
             )
             id_quiz = int(cur.fetchone()[0])
         conn.commit()
@@ -457,17 +478,18 @@ def cadastrar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_se
         conn.close()
 
 
-def atualizar_quiz(id_quiz: int, id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None) -> None:
+def atualizar_quiz(id_quiz: int, id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> None:
     titulo = titulo.strip()
     if not titulo:
         raise ValueError("Título não pode ser vazio.")
     desc = descricao.strip() if descricao else None
+    midia = _validar_link_midia(link_midia)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE quizzes SET titulo = %s, descricao = %s, tempo_segundos = %s WHERE id_quiz = %s AND id_docente_proprietario = %s",
-                (titulo, desc, tempo_segundos, id_quiz, id_docente),
+                "UPDATE quizzes SET titulo = %s, descricao = %s, tempo_segundos = %s, link_midia = %s WHERE id_quiz = %s AND id_docente_proprietario = %s",
+                (titulo, desc, tempo_segundos, midia, id_quiz, id_docente),
             )
             if cur.rowcount == 0:
                 raise PermissionError("Quiz não encontrado ou não pertence a este docente.")

@@ -26,6 +26,7 @@ flutter/
 *.sqlite3
 data/
 *.log
+*.txt
 
 # IDEs
 .vscode/

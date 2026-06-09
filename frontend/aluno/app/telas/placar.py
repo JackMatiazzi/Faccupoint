@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import flet as ft
 
@@ -42,26 +41,28 @@ def tela_placar(page: ft.Page) -> ft.View:
     return ft.View(
         route="/placar",
         bgcolor=BG_PAGE,
-        padding=0,
+        padding=ft.padding.all(SPACE_MD),
         controls=[
-            ft.Container(
+            ft.Column(
                 expand=True,
-                alignment=ft.alignment.center,
-                content=ft.Container(
-                    width=CARD_W,
-                    padding=ft.padding.all(CARD_PADDING),
-                    bgcolor=BG_CARD,
-                    border_radius=CARD_RADIUS,
-                    content=ft.Column(
-                        spacing=SPACE_MD,
-                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        controls=[
-                            ft.Text("Aula encerrada", size=FONT_CAPTION, color=TEXT_SECONDARY),
-                            ft.Text("Placar final", size=FONT_HEADING, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
-                            *linhas,
-                        ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                controls=[
+                    ft.Container(
+                        padding=ft.padding.all(CARD_PADDING),
+                        bgcolor=BG_CARD,
+                        border_radius=CARD_RADIUS,
+                        content=ft.Column(
+                            spacing=SPACE_MD,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Text("Aula encerrada", size=FONT_CAPTION, color=TEXT_SECONDARY),
+                                ft.Text("Placar final", size=FONT_HEADING, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                                *linhas,
+                            ],
+                        ),
                     ),
-                ),
+                ],
             )
         ],
     )

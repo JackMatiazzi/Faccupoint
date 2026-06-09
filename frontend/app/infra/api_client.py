@@ -1,4 +1,3 @@
-from __future__ import annotations
 import os
 import requests
 from dataclasses import dataclass
@@ -49,6 +48,11 @@ def limpar_token() -> None:
     _TOKEN = None
 
 
+def set_token(token: str) -> None:
+    global _TOKEN
+    _TOKEN = token
+
+
 def auth_headers() -> dict[str, str]:
     if not _TOKEN:
         return {}
@@ -89,6 +93,7 @@ class Quiz:
     id_docente_proprietario: int
     tempo_segundos: int | None = None
     nome_docente: str | None = None
+    link_midia: str | None = None
 
 
 @dataclass
@@ -120,12 +125,13 @@ def listar_quizzes_compartilhados(id_docente: int, termo: str = "") -> list[Quiz
     return [Quiz(**{k: v for k, v in r.items() if k in Quiz.__dataclass_fields__}) for r in rows]
 
 
-def criar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None) -> int:
+def criar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> int:
     data = _req("POST", "/quizzes", json={
         "titulo": titulo,
         "descricao": descricao,
         "id_docente_proprietario": id_docente,
         "tempo_segundos": tempo_segundos,
+        "link_midia": link_midia,
     })
     return int(data["id"])
 
@@ -137,12 +143,13 @@ def copiar_quiz(id_quiz: int, id_docente_destino: int) -> int:
     return int(data["id"])
 
 
-def atualizar_quiz(id_quiz: int, id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None) -> None:
+def atualizar_quiz(id_quiz: int, id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> None:
     _req("PUT", f"/quizzes/{id_quiz}", json={
         "titulo": titulo,
         "descricao": descricao,
         "id_docente_proprietario": id_docente,
         "tempo_segundos": tempo_segundos,
+        "link_midia": link_midia,
     })
 
 

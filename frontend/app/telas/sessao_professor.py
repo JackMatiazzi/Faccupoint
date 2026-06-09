@@ -1,4 +1,3 @@
-from __future__ import annotations
 
 import base64
 import io
@@ -10,6 +9,7 @@ import flet as ft
 import qrcode
 import websockets
 
+from app.design_system.media import eh_imagem, id_video_youtube, url_embed_youtube
 from app.design_system.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
@@ -56,8 +56,37 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     questao_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD, visible=False)
     tempo_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION, visible=False)
 
-    _codigo: list[str | None] = [None]
-    _timer_ativo: list[bool] = [False]
+    _codigo = [None]
+    _timer_ativo = [False]
+
+    midia_sessao = ft.Container(visible=False)
+    _midia_url_atual = [None]
+
+    def _render_media_sessao(url: str | None) -> ft.Control | None:
+        if not url:
+            return None
+        video_id = id_video_youtube(url)
+        if video_id:
+            thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+            return ft.Column(
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8,
+                controls=[
+                    ft.Image(src=thumbnail, height=140, fit=ft.ImageFit.CONTAIN, border_radius=CARD_RADIUS),
+                    ft.ElevatedButton(
+                        "Abrir video no navegador",
+                        icon=ft.Icons.PLAY_CIRCLE_OUTLINE,
+                        on_click=lambda _, u=url: page.launch_url(u, web_window_name="_blank"),
+                    ),
+                ],
+            )
+        if eh_imagem(url):
+            return ft.Image(src=url, height=160, fit=ft.ImageFit.CONTAIN, border_radius=CARD_RADIUS)
+        return ft.ElevatedButton(
+            "Abrir mídia",
+            icon=ft.Icons.OPEN_IN_NEW,
+            on_click=lambda _, u=url: page.launch_url(u, web_window_name="_blank"),
+        )
 
     selector = ft.Dropdown(
         label="Selecionar quiz",
@@ -66,7 +95,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
         label_style=ft.TextStyle(color=TEXT_SECONDARY),
         options=[],
     )
-    _mapa_quizzes: dict[str, int] = {}
+    _mapa_quizzes = {}
 
     btn_criar = ft.ElevatedButton(
         text="Gerar código",
@@ -162,7 +191,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     async def _conectar_ws_professor(codigo: str) -> None:
         token = auth_token()
         if not token:
-            status_text.value = "Sessao expirada"
+            status_text.value = "Sessão expirada"
             page.update()
             return
         esquema = "wss" if _BASE.startswith("https://") else "ws"
@@ -192,12 +221,21 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                     elif tipo == "questao_professor":
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
-                        questao_text.value = f"Questao {numero} de {total}"
+                        questao_text.value = f"Questão {numero} de {total}"
                         questao_text.visible = True
                         tempo_text.value = "0s decorridos"
                         tempo_text.visible = True
                         _timer_ativo[0] = True
                         page.run_task(_timer_questao)
+                        nova_url = dados.get("link_midia")
+                        if nova_url != _midia_url_atual[0]:
+                            _midia_url_atual[0] = nova_url
+                            midia = _render_media_sessao(nova_url)
+                            if midia:
+                                midia_sessao.content = midia
+                                midia_sessao.visible = True
+                            else:
+                                midia_sessao.visible = False
                         page.update()
 
                     elif tipo == "responderam":
@@ -315,6 +353,30 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                 codigo_text,
                 qr_image,
                 url_text,
+                ft.Container(
+                    padding=ft.padding.symmetric(horizontal=CARD_PADDING_SM, vertical=8),
+                    bgcolor="#1a2a1a",
+                    border=ft.border.all(1, TEXT_SUCCESS),
+                    border_radius=CARD_RADIUS,
+                    content=ft.Row(
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        controls=[
+                            ft.Icon(ft.Icons.WIFI, color=TEXT_SUCCESS, size=FONT_BODY),
+                            ft.Column(spacing=2, expand=True, controls=[
+                                ft.Text(
+                                    "Somente alunos na mesma rede Wi-Fi conseguem entrar.",
+                                    color=TEXT_SUCCESS, size=FONT_CAPTION,
+                                    weight=ft.FontWeight.W_600,
+                                ),
+                                ft.Text(
+                                    "Isso confirma presença física na aula, alunos fora da rede não conseguem participar.",
+                                    color=TEXT_SECONDARY, size=FONT_CAPTION,
+                                ),
+                            ]),
+                        ],
+                    ),
+                ),
                 btn_iniciar,
                 btn_proxima,
                 erro,
@@ -333,6 +395,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                 ft.Text("Alunos na sala", size=FONT_BODY, color=TEXT_SECONDARY),
                 ft.Divider(color=BORDER),
                 questao_text,
+                midia_sessao,
                 tempo_text,
                 status_text,
                 respondidos_text,
@@ -351,7 +414,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                 ft.TextButton(
                     "Voltar",
                     style=ft.ButtonStyle(color=TEXT_PRIMARY),
-                    on_click=lambda _: page.go("/criacao-quiz"),
+                    on_click=lambda _: page.go("/painel-professor"),
                 )
             ],
         ),

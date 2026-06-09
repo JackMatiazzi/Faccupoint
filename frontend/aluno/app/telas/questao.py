@@ -1,10 +1,10 @@
-from __future__ import annotations
 
 import asyncio
 import json
 
 import flet as ft
 
+from app.design_system.media import eh_imagem, id_video_youtube
 from app.design_system.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_QUESTAO_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, CORES_ALTERNATIVAS,
@@ -17,25 +17,44 @@ def tela_questao(page: ft.Page) -> ft.View:
     page._questao_token = getattr(page, "_questao_token", 0) + 1
     questao_token = page._questao_token
 
-    dados       = getattr(page, "_mensagem_questao", {})
-    enunciado   = dados.get("enunciado", "")
+    dados = getattr(page, "_mensagem_questao", {})
+    enunciado = dados.get("enunciado", "")
     alternativas = dados.get("alternativas", [])
-    numero      = dados.get("numero", 1)
-    total       = dados.get("total", 1)
+    numero = dados.get("numero", 1)
+    total = dados.get("total", 1)
     tempo_total = dados.get("tempo", 20)
+    link_midia = dados.get("link_midia")
 
-    resposta_enviada: list[int | None] = [None]
-    progresso   = ft.ProgressBar(value=1.0, bgcolor=BG_INPUT, color=ACCENT)
+    def _render_media(url: str | None) -> ft.Control | None:
+        if not url:
+            return None
+        video_id = id_video_youtube(url)
+        if video_id:
+            embed = (
+                f"https://www.youtube.com/embed/{video_id}"
+                f"?autoplay=1&mute=1&rel=0&playsinline=1"
+            )
+            return ft.WebView(url=embed, height=200, enable_javascript=True)
+        if eh_imagem(url):
+            return ft.Image(src=url, height=200, fit=ft.ImageFit.CONTAIN, border_radius=CARD_RADIUS)
+        return ft.ElevatedButton(
+            "Abrir mídia",
+            icon=ft.Icons.OPEN_IN_NEW,
+            on_click=lambda _, u=url: page.launch_url(u, web_window_name="_blank"),
+        )
+
+    resposta_enviada = [None]
+    progresso = ft.ProgressBar(value=1.0, bgcolor=BG_INPUT, color=ACCENT)
     texto_tempo = ft.Text(str(tempo_total), size=FONT_SUBHEADING, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD)
-    feedback    = ft.Text("", size=FONT_SUBHEADING, weight=ft.FontWeight.BOLD)
-    botoes: list[ft.Control] = []
+    feedback    = ft.Text("", size=FONT_SUBHEADING, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    botoes = []
 
     def fazer_botao(indice: int, texto: str) -> ft.ElevatedButton:
         return ft.ElevatedButton(
             text=texto,
             bgcolor=CORES_ALTERNATIVAS[indice % len(CORES_ALTERNATIVAS)],
             color=TEXT_PRIMARY,
-            width=CARD_W, height=BTN_QUESTAO_H,
+            height=BTN_QUESTAO_H,
             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
             on_click=lambda e, i=indice: responder(i),
         )
@@ -62,16 +81,24 @@ def tela_questao(page: ft.Page) -> ft.View:
                 page.update()
 
     async def aguardar_resultado() -> None:
-        ws = getattr(page, "_ws_aluno", None)
-        if not ws:
+        queue = getattr(page, "_ws_queue", None)
+        if not queue:
+            feedback.value = "Conexão perdida"
+            feedback.color = TEXT_DANGER
+            page.update()
             return
         try:
-            async for texto in ws:
-                if getattr(page, "_questao_token", None) != questao_token:
+            while True:
+                dados_ws = await queue.get()
+                tipo = dados_ws.get("tipo")
+
+                if tipo == "_erro_conexao":
+                    feedback.value = "Conexão perdida"
+                    feedback.color = TEXT_DANGER
+                    page.update()
                     return
 
-                dados_ws = json.loads(texto)
-                if dados_ws.get("tipo") == "resultado":
+                elif tipo == "resultado":
                     corretas = dados_ws.get("indices_corretos", [])
                     acertou = dados_ws.get("acertou")
                     if resposta_enviada[0] is None:
@@ -87,18 +114,18 @@ def tela_questao(page: ft.Page) -> ft.View:
                         b.disabled = True
                     page.update()
 
-                elif dados_ws.get("tipo") == "questao":
+                elif tipo == "questao":
                     page._mensagem_questao = dados_ws
-                    page._questao_token = questao_token
                     page.views.clear()
                     page.views.append(tela_questao(page))
                     page.update()
                     return
 
-                elif dados_ws.get("tipo") == "fim":
+                elif tipo == "fim":
                     page._placar_final = dados_ws.get("placar", [])
                     page.go("/placar")
                     return
+
         except Exception:
             feedback.value = "Conexão perdida"
             feedback.color = TEXT_DANGER
@@ -125,6 +152,8 @@ def tela_questao(page: ft.Page) -> ft.View:
     for i, alt in enumerate(alternativas):
         botoes.append(fazer_botao(i, alt))
 
+    media_ctrl = _render_media(link_midia)
+
     if resposta_enviada[0] is None:
         page.run_task(countdown)
         page.run_task(aguardar_resultado)
@@ -136,7 +165,8 @@ def tela_questao(page: ft.Page) -> ft.View:
         controls=[
             ft.Column(
                 expand=True,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                scroll=ft.ScrollMode.AUTO,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -148,13 +178,12 @@ def tela_questao(page: ft.Page) -> ft.View:
                     progresso,
                     ft.Container(height=SPACE_MD),
                     ft.Container(
-                        width=CARD_W,
                         padding=ft.padding.all(CARD_PADDING_SM),
                         bgcolor=BG_CARD,
                         border_radius=CARD_RADIUS,
                         content=ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
                     ),
-                    ft.Container(height=SPACE_MD),
+                    *([ft.Container(height=SPACE_MD), media_ctrl] if media_ctrl else [ft.Container(height=SPACE_MD)]),
                     *botoes,
                     ft.Container(height=8),
                     feedback,
