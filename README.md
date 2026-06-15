@@ -13,8 +13,6 @@ Projeto de TCC para aplicar quizzes ao vivo em sala de aula. O professor monta a
 
 O professor faz login, cadastra quizzes com perguntas, abre uma sala e compartilha o código com os alunos. Os alunos entram pelo código, aguardam no lobby, respondem as perguntas no ritmo da sessão e veem o placar no final.
 
-A autenticação usa PIN e token assinado. Para o escopo do protótipo, isso mantém o fluxo simples sem depender de cadastro completo de senha.
-
 ## Configuração
 
 Crie o arquivo `backend/.env` a partir de `backend/.env.example`:
@@ -59,9 +57,18 @@ Na raiz do projeto:
 python launcher.py
 ```
 
-Isso inicia o backend e abre o app do professor. O app do aluno também pode ser aberto separado:
+O app do aluno também pode ser aberto separado:
 
 ```bash
-cd frontend/aluno
-python -m app.main
+cd frontend
+python -m aluno.main
+```
+
+
+## Testes
+
+Na raiz do projeto:
+
+```bash
+python -m unittest discover -s tests -v
 ```

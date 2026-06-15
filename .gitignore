@@ -15,10 +15,20 @@ __pycache__/
 # Flet build
 build/
 dist/
-*.spec
 .flet/
 flutter/
 .dart_tool/
+storage/
+**/storage/
+
+# Documentação local
+docs/
+
+# Scripts de desenvolvimento (seed, testes manuais)
+scripts/
+seed*.py
+testar_*.py
+populate*.py
 
 # Dados locais
 *.db
