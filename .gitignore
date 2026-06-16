@@ -37,6 +37,7 @@ populate*.py
 data/
 *.log
 *.txt
+.local/
 
 # IDEs
 .vscode/
