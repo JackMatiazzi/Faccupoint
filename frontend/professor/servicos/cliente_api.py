@@ -1,12 +1,25 @@
 import os
-import requests
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
+import requests
+from urllib3.exceptions import InsecureRequestWarning
+
 load_dotenv()
 _BASE = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
 _TOKEN: str | None = None
+_HOST_API = urlparse(_BASE).hostname or ""
+
+
+def _pode_ignorar_ssl_institucional() -> bool:
+    return _HOST_API == "faccupoint-backend.onrender.com"
 
 
 class ApiError(Exception):
@@ -24,6 +37,25 @@ def _req(method: str, path: str, **kwargs) -> dict | list:
         r = requests.request(method, f"{_BASE}{path}", timeout=60, headers=headers, **kwargs)
     except requests.Timeout:
         raise ApiError(0, "backend demorou para responder")
+    except requests.exceptions.SSLError:
+        if not _pode_ignorar_ssl_institucional():
+            raise ApiError(0, "falha de certificado da rede")
+        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+        try:
+            r = requests.request(
+                method,
+                f"{_BASE}{path}",
+                timeout=60,
+                headers=headers,
+                verify=False,
+                **kwargs,
+            )
+        except requests.Timeout:
+            raise ApiError(0, "backend demorou para responder")
+        except requests.ConnectionError:
+            raise ApiError(0, "backend fora do ar")
+    except requests.exceptions.ProxyError:
+        raise ApiError(0, "proxy da rede bloqueou a conexao")
     except requests.ConnectionError:
         raise ApiError(0, "backend fora do ar")
     if not r.ok:
@@ -191,4 +223,3 @@ def criar_sessao(id_quiz: int, id_docente_anfitriao: int | None = None) -> str:
 
 def iniciar_sessao(codigo: str) -> None:
     _req("POST", f"/sessoes/{codigo}/iniciar")
-
