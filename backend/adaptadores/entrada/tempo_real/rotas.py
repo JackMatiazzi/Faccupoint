@@ -196,7 +196,10 @@ async def _encerrar(codigo: str) -> None:
     placar = [{"apelido": p.apelido, "pontos": p.pontos} for p in sorted(sessao.participantes.values(), key=lambda x: -x.pontos)]
     await _broadcast_alunos(sessao, {"tipo": "fim", "placar": placar})
     await _enviar_professor(sessao, {"tipo": "fim", "placar": placar})
-    asyncio.create_task(asyncio.to_thread(enviar_relatorio_sessao, sessao.id_sessao))
+    try:
+        await asyncio.to_thread(enviar_relatorio_sessao, sessao.id_sessao)
+    except Exception:
+        logger.exception("falha inesperada ao finalizar envio de email da sala %s", codigo)
     armazenamento_sessoes_ativas.remover(codigo)
 
 

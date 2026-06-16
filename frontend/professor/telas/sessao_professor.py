@@ -1,10 +1,12 @@
 
 import base64
 import io
+import ipaddress
 import json
 import socket
 
 import flet as ft
+import psutil
 import qrcode
 import websockets
 
@@ -30,6 +32,41 @@ _API_PORT = _parsed_base.port or (443 if _BASE.startswith("https") else 8000)
 
 
 def _ip_local() -> str:
+    candidatos = []
+    nomes_ignorados = ("virtual", "vpn", "radmin", "virtualbox", "vmware", "bluetooth", "loopback")
+
+    for nome, enderecos in psutil.net_if_addrs().items():
+        estatisticas = psutil.net_if_stats().get(nome)
+        nome_normalizado = nome.lower()
+
+        if not estatisticas or not estatisticas.isup:
+            continue
+        if any(termo in nome_normalizado for termo in nomes_ignorados):
+            continue
+
+        for endereco in enderecos:
+            if endereco.family != socket.AF_INET:
+                continue
+
+            try:
+                ip = ipaddress.ip_address(endereco.address)
+            except ValueError:
+                continue
+
+            if ip.is_loopback or ip.is_link_local or not ip.is_private:
+                continue
+
+            prioridade = 10
+            if "wi-fi" in nome_normalizado or "wifi" in nome_normalizado or "wireless" in nome_normalizado:
+                prioridade = 0
+            elif "ethernet" in nome_normalizado:
+                prioridade = 5
+
+            candidatos.append((prioridade, nome, endereco.address))
+
+    if candidatos:
+        return sorted(candidatos)[0][2]
+
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))

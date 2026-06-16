@@ -33,6 +33,38 @@ def _config_email() -> dict[str, str | int] | None:
     }
 
 
+def _campos_email_ausentes() -> list[str]:
+    campos = {
+        "EMAIL_HOST": os.getenv("EMAIL_HOST", "").strip(),
+        "EMAIL_USER": os.getenv("EMAIL_USER", "").strip(),
+        "EMAIL_PASSWORD": os.getenv("EMAIL_PASSWORD", "").strip(),
+        "EMAIL_FROM": os.getenv("EMAIL_FROM", os.getenv("EMAIL_USER", "")).strip(),
+    }
+    return [nome for nome, valor in campos.items() if not valor]
+
+
+def enviar_email_teste(destino: str) -> None:
+    config = _config_email()
+    if config is None:
+        ausentes = ", ".join(_campos_email_ausentes())
+        raise RuntimeError(f"email incompleto: {ausentes}")
+
+    msg = EmailMessage()
+    msg["Subject"] = "Teste de envio - FaccuPoint"
+    msg["From"] = str(config["remetente"])
+    msg["To"] = destino
+    msg.set_content(
+        "Se voce recebeu este e-mail, o SMTP do FaccuPoint esta configurado corretamente.\n"
+    )
+
+    import ssl as _ssl
+    with smtplib.SMTP(str(config["host"]), int(config["porta"]), timeout=15) as smtp:
+        if os.getenv("EMAIL_STARTTLS", "1") == "1":
+            smtp.starttls(context=_ssl.create_default_context())
+        smtp.login(str(config["usuario"]), str(config["senha"]))
+        smtp.send_message(msg)
+
+
 def _montar_texto(relatorio: dict) -> str:
     respostas_validas = [r for r in relatorio["respostas"] if r["ordem"] is not None]
     n_alunos = len({r["aluno"] for r in relatorio["respostas"]})
