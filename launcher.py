@@ -30,6 +30,8 @@ if _FROZEN and "--run-backend" in sys.argv:
 
 if _FROZEN and "--run-aluno" in sys.argv:
     _fix_stdio()
+    os.environ["FLET_SERVER_IP"] = "0.0.0.0"
+    os.environ.setdefault("FLET_SERVER_PORT", os.getenv("PORTA_ALUNO", "8081"))
     sys.path.insert(0, str(_MEIPASS))
     from aluno.main import run_app
     run_app()
@@ -258,7 +260,12 @@ def main() -> None:
                     creationflags=_SEM_JANELA,
                 )
             )
-        env_aluno = {**os.environ, "PYTHONPATH": str(ROOT / "frontend")}
+        env_aluno = {
+            **os.environ,
+            "PYTHONPATH": str(ROOT / "frontend"),
+            "FLET_SERVER_IP": "0.0.0.0",
+            "FLET_SERVER_PORT": str(porta_aluno),
+        }
         procs.append(
             subprocess.Popen(
                 [PYTHON, "-m", "aluno.main"],

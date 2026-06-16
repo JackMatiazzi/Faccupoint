@@ -47,6 +47,7 @@ from backend.adaptadores.saida.postgres.repositorio import (
     listar_quizzes,
     listar_quizzes_compartilhados,
 )
+from backend.adaptadores.saida.email.relatorio import enviar_email_teste
 from backend.infraestrutura.seguranca import (
     gerar_token_docente,
     verificar_pin,
@@ -99,6 +100,19 @@ def admin_atual(atual: dict = Depends(docente_atual)) -> dict:
 
 def _id_docente(atual: dict) -> int:
     return int(atual["id_docente"])
+
+
+@router.post("/diagnostico/email", tags=["diagnostico"])
+def diagnosticar_email(atual: dict = Depends(admin_atual)):
+    destino = str(atual["email"])
+    try:
+        enviar_email_teste(destino)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger_msg = f"{type(e).__name__}: {e}"
+        raise HTTPException(status_code=502, detail=f"falha ao enviar email de teste: {logger_msg}")
+    return {"ok": True, "destino": destino}
 
 
 @router.post("/auth/login", response_model=LoginSaida, tags=["auth"])
