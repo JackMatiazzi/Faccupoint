@@ -136,7 +136,9 @@ def _enviar_por_resend(
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
             "Content-Type": "application/json",
+            "User-Agent": "FaccuPoint/1.0",
         },
         method="POST",
     )

@@ -45,6 +45,7 @@ class ResendEmailTest(unittest.TestCase):
         self.assertEqual(timeout, 20)
         self.assertEqual(request.full_url, "https://api.resend.com/emails")
         self.assertEqual(request.headers["Authorization"], "Bearer re_test")
+        self.assertEqual(request.headers["User-agent"], "FaccuPoint/1.0")
         self.assertEqual(payload["from"], "FaccuPoint <onboarding@resend.dev>")
         self.assertEqual(payload["to"], ["prof@example.com"])
         self.assertEqual(payload["attachments"][0]["filename"], "resultado.csv")
