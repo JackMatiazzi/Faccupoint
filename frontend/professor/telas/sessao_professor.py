@@ -1,5 +1,6 @@
 
 import base64
+import asyncio
 import io
 import ipaddress
 import json
@@ -184,14 +185,19 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             page.update()
             return
 
-        _codigo[0] = codigo
-        ip = _ip_local()
-        url = (
-            f"http://{ip}:{_PORTA_ALUNO}"
-            f"?codigo={codigo}&api_host={_API_HOST}&api_port={_API_PORT}&api_secure={_API_SECURE}"
-        )
-        qr_b64 = _gerar_qrcode_b64(url)
+        try:
+            ip = _ip_local()
+            url = (
+                f"http://{ip}:{_PORTA_ALUNO}"
+                f"?codigo={codigo}&api_host={_API_HOST}&api_port={_API_PORT}&api_secure={_API_SECURE}"
+            )
+            qr_b64 = _gerar_qrcode_b64(url)
+        except Exception as ex:
+            erro.value = f"Erro ao gerar acesso da sala: {type(ex).__name__}: {ex}"
+            page.update()
+            return
 
+        _codigo[0] = codigo
         codigo_text.value = codigo
         qr_image.src_base64 = qr_b64
         qr_image.visible = True
@@ -350,11 +356,18 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     btn_criar.on_click = criar_sessao
     btn_iniciar.on_click = iniciar_quiz
 
-    carregar_quizzes()
-    if getattr(page, "abrir_sala_automaticamente", False):
+    abrir_automaticamente = getattr(page, "abrir_sala_automaticamente", False)
+    if abrir_automaticamente:
         page.abrir_sala_automaticamente = False
         selector.visible = False
-        criar_sessao()
+
+    async def preparar_sala_depois_de_renderizar() -> None:
+        await asyncio.sleep(0.1)
+        carregar_quizzes()
+        if abrir_automaticamente:
+            criar_sessao()
+
+    page.run_task(preparar_sala_depois_de_renderizar)
 
     card_controles = ft.Container(
         width=CARD_W,
