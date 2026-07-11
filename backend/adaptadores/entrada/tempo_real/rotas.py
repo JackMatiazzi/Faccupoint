@@ -135,6 +135,14 @@ async def _revelar_resultado(codigo: str) -> None:
         acertou = p.resposta_atual in indices_corretos
         if acertou:
             p.pontos += 1
+        if p.resposta_atual is None and p.id_participante is not None:
+            await asyncio.to_thread(
+                registrar_tentativa,
+                p.id_participante,
+                pergunta["id_pergunta"],
+                None,
+                False,
+            )
 
     contagem = sessao.contagem_respostas()
     placar = [{"apelido": p.apelido, "pontos": p.pontos} for p in sorted(sessao.participantes.values(), key=lambda x: -x.pontos)]
@@ -196,6 +204,17 @@ async def _encerrar(codigo: str) -> None:
     placar = [{"apelido": p.apelido, "pontos": p.pontos} for p in sorted(sessao.participantes.values(), key=lambda x: -x.pontos)]
     await _broadcast_alunos(sessao, {"tipo": "fim", "placar": placar})
     await _enviar_professor(sessao, {"tipo": "fim", "placar": placar})
+    for p in sessao.participantes.values():
+        try:
+            await p.ws.close()
+        except Exception:
+            pass
+    if sessao.professor_ws:
+        try:
+            await sessao.professor_ws.close()
+        except Exception:
+            pass
+        sessao.professor_ws = None
     try:
         await asyncio.to_thread(enviar_relatorio_sessao, sessao.id_sessao)
     except Exception:
@@ -309,6 +328,9 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     sessao = obter_sessao(codigo)
     if not sessao:
         await ws.close(code=4004)
+        return
+    if sessao.status != "lobby":
+        await ws.close(code=4008)
         return
     if len(sessao.participantes) >= _MAX_PARTICIPANTES:
         await ws.close(code=4008)

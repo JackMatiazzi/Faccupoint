@@ -161,14 +161,19 @@ def _enviar_email(
     anexo_conteudo: bytes | None = None,
 ) -> None:
     if _resend_configurado():
-        _enviar_por_resend(
-            destino=destino,
-            assunto=assunto,
-            texto=texto,
-            anexo_nome=anexo_nome,
-            anexo_conteudo=anexo_conteudo,
-        )
-        return
+        try:
+            _enviar_por_resend(
+                destino=destino,
+                assunto=assunto,
+                texto=texto,
+                anexo_nome=anexo_nome,
+                anexo_conteudo=anexo_conteudo,
+            )
+            return
+        except Exception:
+            if _config_email() is None:
+                raise
+            logger.exception("falha ao enviar via resend, tentando smtp como fallback")
 
     _enviar_por_smtp(
         destino=destino,
@@ -244,7 +249,9 @@ def _montar_csv(relatorio: dict) -> str:
 
     for r in relatorio["respostas"]:
         resultado = ""
-        if r["acertou"] is not None:
+        if not r["resposta"]:
+            resultado = "nao respondeu" if r["acertou"] is not None else ""
+        elif r["acertou"] is not None:
             resultado = "acertou" if r["acertou"] else "errou"
         csv.writerow([
             relatorio["codigo"],

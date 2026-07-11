@@ -10,16 +10,10 @@ except Exception:
     pass
 
 import requests
-from urllib3.exceptions import InsecureRequestWarning
 
 load_dotenv()
 _BASE = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
 _TOKEN: str | None = None
-_HOST_API = urlparse(_BASE).hostname or ""
-
-
-def _pode_ignorar_ssl_institucional() -> bool:
-    return _HOST_API == "faccupoint-backend.onrender.com"
 
 
 class ApiError(Exception):
@@ -38,22 +32,7 @@ def _req(method: str, path: str, **kwargs) -> dict | list:
     except requests.Timeout:
         raise ApiError(0, "backend demorou para responder")
     except requests.exceptions.SSLError:
-        if not _pode_ignorar_ssl_institucional():
-            raise ApiError(0, "falha de certificado da rede")
-        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
-        try:
-            r = requests.request(
-                method,
-                f"{_BASE}{path}",
-                timeout=60,
-                headers=headers,
-                verify=False,
-                **kwargs,
-            )
-        except requests.Timeout:
-            raise ApiError(0, "backend demorou para responder")
-        except requests.ConnectionError:
-            raise ApiError(0, "backend fora do ar")
+        raise ApiError(0, "falha de certificado da rede")
     except requests.exceptions.ProxyError:
         raise ApiError(0, "proxy da rede bloqueou a conexao")
     except requests.ConnectionError:
@@ -110,6 +89,12 @@ def listar_docentes() -> list[Docente]:
 def inserir_docente(nome: str, email: str, pin: str, papel: str = "prof") -> None:
     _req("POST", "/docentes", json={
         "nome": nome, "email": email, "pin": pin, "papel": papel,
+    })
+
+
+def atualizar_docente(id_docente: int, nome: str, email: str, papel: str = "prof", pin: str | None = None) -> None:
+    _req("PUT", f"/docentes/{id_docente}", json={
+        "nome": nome, "email": email, "papel": papel, "pin": pin,
     })
 
 

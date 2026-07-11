@@ -32,6 +32,7 @@ def _limpar_falhas_login(email: str) -> None:
 
 from backend.adaptadores.saida.postgres.repositorio import (
     ADM, PROF,
+    atualizar_docente,
     atualizar_pergunta,
     atualizar_quiz,
     buscar_docente_do_quiz,
@@ -142,6 +143,13 @@ class CadastrarDocenteEntrada(BaseModel):
     papel: str = PROF
 
 
+class AtualizarDocenteEntrada(BaseModel):
+    nome: str
+    email: str
+    papel: str = PROF
+    pin: str | None = None
+
+
 @router.get("/docentes", response_model=list[DocenteSaida], tags=["docentes"])
 def listar(atual: dict = Depends(admin_atual)):
     return [DocenteSaida(id_docente=r[0], nome=r[1], email=r[2], papel=r[3]) for r in listar_docentes()]
@@ -151,6 +159,17 @@ def listar(atual: dict = Depends(admin_atual)):
 def cadastrar(corpo: CadastrarDocenteEntrada, atual: dict = Depends(admin_atual)):
     try:
         cadastrar_docente(corpo.nome, corpo.email, corpo.pin, corpo.papel)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.put("/docentes/{id_alvo}", tags=["docentes"])
+def atualizar(id_alvo: int, corpo: AtualizarDocenteEntrada, atual: dict = Depends(admin_atual)):
+    try:
+        atualizar_docente(id_alvo, _id_docente(atual), corpo.nome, corpo.email, corpo.papel, corpo.pin)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}

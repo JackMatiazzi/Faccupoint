@@ -1,14 +1,28 @@
 
+from datetime import datetime
+
 import flet as ft
 
+from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.tokens import (
-    BG_CARD, BG_PAGE, CARD_PADDING, CARD_RADIUS,
+    ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING, CARD_RADIUS,
     FONT_CAPTION, FONT_HEADING, SPACE_MD, TEXT_PRIMARY, TEXT_SECONDARY,
 )
 
 
 def tela_placar(page: ft.Page) -> ft.View:
     placar = getattr(page, "_placar_final", []) or []
+    horario_encerramento = datetime.now().strftime("%H:%M")
+
+    def entrar_em_outra_sala(e) -> None:
+        page.sessao_codigo = ""
+        page.sessao_apelido = ""
+        page._ws_aluno = None
+        page._placar_final = []
+        page._mensagem_questao = {}
+        page._forcar_entrada_manual = True
+        ir_para(page, "/")
+
     linhas = []
     for posicao, item in enumerate(placar, start=1):
         apelido = item.get("apelido", "Aluno")
@@ -56,9 +70,16 @@ def tela_placar(page: ft.Page) -> ft.View:
                             spacing=SPACE_MD,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                             controls=[
-                                ft.Text("Aula encerrada", size=FONT_CAPTION, color=TEXT_SECONDARY),
+                                ft.Text(f"Aula encerrada às {horario_encerramento}", size=FONT_CAPTION, color=TEXT_SECONDARY),
                                 ft.Text("Placar final", size=FONT_HEADING, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
                                 *linhas,
+                                ft.Container(height=8),
+                                ft.ElevatedButton(
+                                    text="Entrar em outra sala",
+                                    bgcolor=ACCENT, color=TEXT_PRIMARY, height=BTN_H,
+                                    style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
+                                    on_click=entrar_em_outra_sala,
+                                ),
                             ],
                         ),
                     ),

@@ -4,6 +4,7 @@ import json
 
 import flet as ft
 
+from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_QUESTAO_H, BTN_RADIUS,
@@ -123,7 +124,14 @@ def tela_questao(page: ft.Page) -> ft.View:
 
                 elif tipo == "fim":
                     page._placar_final = dados_ws.get("placar", [])
-                    page.go("/placar")
+                    ws = getattr(page, "_ws_aluno", None)
+                    if ws:
+                        try:
+                            await ws.close()
+                        except Exception:
+                            pass
+                        page._ws_aluno = None
+                    ir_para(page, "/placar")
                     return
 
         except Exception:
@@ -165,7 +173,6 @@ def tela_questao(page: ft.Page) -> ft.View:
         controls=[
             ft.Column(
                 expand=True,
-                scroll=ft.ScrollMode.AUTO,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
                     ft.Row(
@@ -178,15 +185,25 @@ def tela_questao(page: ft.Page) -> ft.View:
                     progresso,
                     ft.Container(height=SPACE_MD),
                     ft.Container(
-                        padding=ft.padding.all(CARD_PADDING_SM),
-                        bgcolor=BG_CARD,
-                        border_radius=CARD_RADIUS,
-                        content=ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
+                        expand=True,
+                        content=ft.Column(
+                            expand=True,
+                            scroll=ft.ScrollMode.AUTO,
+                            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                            controls=[
+                                ft.Container(
+                                    padding=ft.padding.all(CARD_PADDING_SM),
+                                    bgcolor=BG_CARD,
+                                    border_radius=CARD_RADIUS,
+                                    content=ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
+                                ),
+                                *([ft.Container(height=SPACE_MD), media_ctrl] if media_ctrl else [ft.Container(height=SPACE_MD)]),
+                                *botoes,
+                                ft.Container(height=8),
+                                feedback,
+                            ],
+                        ),
                     ),
-                    *([ft.Container(height=SPACE_MD), media_ctrl] if media_ctrl else [ft.Container(height=SPACE_MD)]),
-                    *botoes,
-                    ft.Container(height=8),
-                    feedback,
                 ],
             )
         ],

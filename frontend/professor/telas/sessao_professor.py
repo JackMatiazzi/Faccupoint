@@ -198,6 +198,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
         url_text.value = f"http://{ip}:{_PORTA_ALUNO}"
         btn_criar.visible = False
         btn_iniciar.visible = True
+        btn_iniciar.disabled = True
         selector.disabled = True
         status_text.value = "Esperando os alunos entrarem..."
         etapa_text.value = "Etapa 2 de 3: Aguardando alunos"
@@ -232,6 +233,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         participantes = dados.get("participantes", [])
                         n = len(participantes)
                         status_text.value = f"{n} aluno{'s' if n != 1 else ''} na sala"
+                        if btn_iniciar.visible:
+                            btn_iniciar.disabled = n == 0
                         participantes_col.controls = [
                             ft.Container(
                                 padding=ft.padding.symmetric(horizontal=12, vertical=6),
@@ -406,6 +409,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
         border_radius=CARD_RADIUS,
         content=ft.Column(
             spacing=SPACE_MD,
+            scroll=ft.ScrollMode.AUTO,
             controls=[
                 ft.Text("Alunos na sala", size=FONT_BODY, color=TEXT_SECONDARY),
                 ft.Divider(color=BORDER),
