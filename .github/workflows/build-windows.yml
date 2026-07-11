@@ -37,7 +37,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt -r frontend/requirements.txt
-          python -m pip install pyinstaller pywin32
+          python -m pip install flet-desktop==0.28.3 flet-web==0.28.3 pyinstaller pywin32
 
       - name: Executar testes
         run: python -m unittest discover -s tests -v
