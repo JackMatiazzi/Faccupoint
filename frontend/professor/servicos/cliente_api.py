@@ -17,9 +17,10 @@ _TOKEN: str | None = None
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, detail: str):
+    def __init__(self, status: int, detail: str, retry_after: int | None = None):
         self.status = status
         self.detail = detail
+        self.retry_after = retry_after
         super().__init__(f"[{status}] {detail}")
 
 
@@ -42,7 +43,11 @@ def _req(method: str, path: str, **kwargs) -> dict | list:
             detail = r.json().get("detail", r.text)
         except Exception:
             detail = r.text
-        raise ApiError(r.status_code, str(detail))
+        try:
+            retry_after = int(r.headers.get("Retry-After", ""))
+        except (TypeError, ValueError):
+            retry_after = None
+        raise ApiError(r.status_code, str(detail), retry_after=retry_after)
     return r.json()
 
 

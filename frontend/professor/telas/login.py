@@ -57,7 +57,18 @@ def tela_login(page: ft.Page) -> ft.View:
                 return
             except ApiError as ex:
                 servidor_fora = ex.status == 0 and "fora do ar" in ex.detail
-                if servidor_fora and tentativa < _MAX_TENTATIVAS:
+                if ex.status == 429:
+                    aviso_conexao.visible = False
+                    segundos = ex.retry_after or 60
+                    for restante in range(segundos, 0, -1):
+                        erro.value = f"Muitas tentativas. Tente novamente em {restante}s."
+                        page.update()
+                        await asyncio.sleep(1)
+                    erro.value = "Voce ja pode tentar novamente."
+                    btn_entrar.disabled = False
+                    page.update()
+                    return
+                elif servidor_fora and tentativa < _MAX_TENTATIVAS:
                     _aviso_texto.value = (
                         f"Servidor iniciando... aguarde ({tentativa}/{_MAX_TENTATIVAS})"
                     )
