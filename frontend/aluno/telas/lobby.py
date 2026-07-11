@@ -5,6 +5,7 @@ import json
 import flet as ft
 import websockets
 
+from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
     CARD_PADDING, CARD_RADIUS, CARD_W, FONT_CAPTION, FONT_CODE, SPACE_MD,
@@ -21,7 +22,7 @@ def tela_lobby(page: ft.Page) -> ft.View:
         width=CARD_W, height=BTN_H,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
         visible=False,
-        on_click=lambda _: page.go("/"),
+        on_click=lambda _: ir_para(page, "/"),
     )
 
     async def conectar() -> None:
@@ -69,7 +70,7 @@ def tela_lobby(page: ft.Page) -> ft.View:
                     page.update()
                     await asyncio.sleep(1.5)
                     page._mensagem_questao = dados
-                    page.go("/questao")
+                    ir_para(page, "/questao")
 
                 else:
                     queue = getattr(page, "_ws_queue", None)

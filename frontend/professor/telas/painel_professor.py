@@ -674,6 +674,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                     content=ft.Column(
                         expand=True,
                         spacing=SPACE_MD,
+                        scroll=ft.ScrollMode.AUTO,
                         controls=[
                             ft.Row(
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,

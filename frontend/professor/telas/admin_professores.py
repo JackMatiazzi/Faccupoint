@@ -1,4 +1,6 @@
 
+import random
+
 import flet as ft
 
 from compartilhado.sistema_design.tokens import (
@@ -23,24 +25,26 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
     busca = campo("Buscar por nome ou email", prefix_icon=ft.Icons.SEARCH, height=BTN_H)
     tabela = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO)
     contador = ft.Text("0 ativos", color=TEXT_PRIMARY, size=FONT_CAPTION)
-    filtro = ["todos"]
     docentes = []
+
+    def _gerar_pin() -> str:
+        return f"{random.randint(1000, 9999)}"
 
     nome_input = campo("Nome completo")
     email_input = campo("Email institucional")
-    senha_input = campo("Senha inicial", value="1234", password=True, can_reveal_password=True, max_length=4)
+    senha_input = campo("Senha inicial", value=_gerar_pin(), password=True, can_reveal_password=True, max_length=4)
     def iniciais(nome: str) -> str:
         partes = [p[0].upper() for p in nome.split() if p]
         return "".join(partes[:2]) or "P"
 
     def gerar_senha(e=None) -> None:
-        import random
-        senha_input.value = f"{random.randint(1000, 9999)}"
+        senha_input.value = _gerar_pin()
         page.update()
 
     def abrir_modal(e=None) -> None:
         erro.value = ""
         sucesso.value = ""
+        senha_input.value = _gerar_pin()
 
         def fechar(ev=None) -> None:
             dlg.open = False
@@ -63,7 +67,7 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                     api.inserir_docente(nome, email, senha)
                     nome_input.value = ""
                     email_input.value = ""
-                    senha_input.value = "1234"
+                    senha_input.value = _gerar_pin()
                     sucesso.value = "Professor cadastrado."
                     carregar_docentes()
                     fechar()
@@ -111,6 +115,94 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
         dlg.open = True
         page.update()
 
+    def abrir_modal_editar(docente: Docente) -> None:
+        erro.value = ""
+        sucesso.value = ""
+
+        nome_edit = campo("Nome completo", value=docente.nome)
+        email_edit = campo("Email institucional", value=docente.email)
+        papel_edit = ft.Dropdown(
+            label="Papel",
+            bgcolor=BG_INPUT, border_color=BORDER,
+            focused_border_color=ACCENT, color=TEXT_PRIMARY,
+            label_style=ft.TextStyle(color=TEXT_SECONDARY),
+            value=docente.papel,
+            options=[
+                ft.dropdown.Option("prof", "Professor"),
+                ft.dropdown.Option("adm", "Administrador"),
+            ],
+        )
+        senha_edit = campo("Nova senha (deixe em branco para manter)", password=True, can_reveal_password=True, max_length=4)
+        erro_edit = ft.Text("", color=TEXT_DANGER, size=FONT_CAPTION)
+
+        def fechar(ev=None) -> None:
+            dlg.open = False
+            page.update()
+
+        def gerar_senha_edit(e=None) -> None:
+            senha_edit.value = _gerar_pin()
+            page.update()
+
+        def salvar(ev=None) -> None:
+            erro_edit.value = ""
+            nome = nome_edit.value.strip()
+            email = email_edit.value.strip()
+            senha = senha_edit.value.strip()
+            if not nome:
+                erro_edit.value = "Informe o nome."
+            elif not email or "@" not in email:
+                erro_edit.value = "Email invalido."
+            elif senha and (len(senha) != 4 or not senha.isdigit()):
+                erro_edit.value = "Nova senha deve ter 4 digitos."
+            else:
+                try:
+                    api.atualizar_docente(docente.id_docente, nome, email, papel_edit.value, senha or None)
+                    sucesso.value = "Professor atualizado."
+                    carregar_docentes()
+                    fechar()
+                except ApiError as ex:
+                    erro_edit.value = ex.detail
+            page.update()
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            bgcolor=BG_CARD,
+            title=ft.Row(
+                controls=[
+                    ft.Text("Editar professor", color=TEXT_PRIMARY, size=FONT_TITLE, weight=ft.FontWeight.BOLD),
+                    ft.Container(expand=True),
+                    ft.IconButton(icon=ft.Icons.CLOSE, icon_color=TEXT_SECONDARY, on_click=fechar),
+                ],
+            ),
+            content=ft.Container(
+                width=G32 * 16,
+                content=ft.Column(
+                    tight=True,
+                    spacing=G16,
+                    controls=[
+                        nome_edit,
+                        email_edit,
+                        papel_edit,
+                        ft.Row(
+                            spacing=G8,
+                            controls=[
+                                ft.Container(expand=True, content=senha_edit),
+                                btn_outline("Gerar nova", on_click=gerar_senha_edit, icon=ft.Icons.REFRESH),
+                            ],
+                        ),
+                        erro_edit,
+                    ],
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", style=ft.ButtonStyle(color=TEXT_SECONDARY), on_click=fechar),
+                btn_primary("Salvar alteracoes", on_click=salvar, icon=ft.Icons.CHECK),
+            ],
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
     def remover_docente(docente: Docente) -> None:
         if docente.id_docente == page.docente_id:
             return
@@ -120,10 +212,6 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
         except ApiError as ex:
             erro.value = ex.detail
             page.update()
-
-    def set_filtro(valor: str) -> None:
-        filtro[0] = valor
-        renderizar_tabela()
 
     def carregar_docentes() -> None:
         try:
@@ -137,16 +225,11 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
         termo = busca.value.strip().lower()
         rows = []
         for d in docentes:
-            pendente = d.papel != "adm" and d.email.endswith(".pendente")
-            if filtro[0] == "ativos" and pendente:
-                continue
-            if filtro[0] == "pendentes" and not pendente:
-                continue
             if termo and termo not in d.nome.lower() and termo not in d.email.lower():
                 continue
             rows.append(d)
 
-        contador.value = f"{len([d for d in docentes if d.papel != 'adm'])} ativos"
+        contador.value = f"{len([d for d in docentes if d.papel != 'adm'])} professores"
         tabela.controls.clear()
         tabela.controls.append(
             ft.Container(
@@ -156,8 +239,8 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                     controls=[
                         ft.Text("Nome", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
                         ft.Text("Email", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
-                        ft.Text("Status", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=1),
-                        ft.Text("Ações", color=TEXT_SECONDARY, size=FONT_CAPTION, width=G48),
+                        ft.Text("Papel", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=1),
+                        ft.Text("Ações", color=TEXT_SECONDARY, size=FONT_CAPTION, width=G48 * 2),
                     ],
                 ),
             )
@@ -186,10 +269,11 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                                 ],
                             ),
                             ft.Text(d.email, color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
-                            ft.Container(expand=1, content=status_badge("ADMIN" if d.papel == "adm" else "ATIVO", active=True)),
+                            ft.Container(expand=1, content=status_badge("ADMINISTRADOR" if d.papel == "adm" else "PROFESSOR", active=True)),
                             ft.Row(
-                                width=G48,
+                                width=G48 * 2,
                                 controls=[
+                                    ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=TEXT_SECONDARY, tooltip="Editar", on_click=lambda _, docente=d: abrir_modal_editar(docente)),
                                     ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=TEXT_DANGER, tooltip="Remover", on_click=lambda _, docente=d: remover_docente(docente)),
                                 ],
                             ),
@@ -282,15 +366,7 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                                         btn_primary("Adicionar professor", on_click=abrir_modal, icon=ft.Icons.PERSON_ADD_ALT),
                                     ],
                                 ),
-                                ft.Row(
-                                    spacing=G8,
-                                    controls=[
-                                        ft.Container(expand=True, content=busca),
-                                        btn_outline("Todos", on_click=lambda _: set_filtro("todos")),
-                                        btn_outline("Ativos", on_click=lambda _: set_filtro("ativos")),
-                                        btn_outline("Pendentes", on_click=lambda _: set_filtro("pendentes")),
-                                    ],
-                                ),
+                                ft.Container(content=busca),
                                 erro,
                                 ft.Container(expand=True, content=tabela),
                             ],

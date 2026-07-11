@@ -30,11 +30,17 @@ def main(page: ft.Page) -> None:
     page.sessao_porta = "8000"
     page.sessao_api_secure = False
     page._ws_queue = asyncio.Queue()
+    page._rota_esperada = rota_inicial
 
     def route_change(e: ft.RouteChangeEvent) -> None:
-        page.views.clear()
         rota = page.route
+        esperada = getattr(page, "_rota_esperada", "/")
 
+        if rota != esperada:
+            page.go(esperada)
+            return
+
+        page.views.clear()
         if rota == "/lobby":
             page.views.append(tela_lobby(page))
         elif rota == "/questao":

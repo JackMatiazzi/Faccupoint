@@ -1,6 +1,11 @@
 from urllib.parse import parse_qs, urlparse
 
 
+def ir_para(page, rota: str) -> None:
+    page._rota_esperada = rota
+    page.go(rota)
+
+
 def query_valor(page, nome: str) -> str:
     query = getattr(page, "query", None)
     if query is not None:

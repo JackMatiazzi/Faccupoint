@@ -94,6 +94,47 @@ def cadastrar_docente(nome: str, email: str, pin: str, papel: str = PROF) -> Non
         conn.close()
 
 
+def atualizar_docente(
+    id_alvo: int,
+    id_admin: int,
+    nome: str,
+    email: str,
+    papel: str,
+    pin: str | None = None,
+) -> None:
+    if papel not in PAPEIS_VALIDOS:
+        raise ValueError("Papel inválido. Use 'adm' ou 'prof'.")
+    nome = nome.strip()
+    email = email.strip().lower()
+    if not nome or not email:
+        raise ValueError("Nome e email não podem ser vazios.")
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT papel FROM docentes WHERE id_docente = %s", (id_admin,))
+            row = cur.fetchone()
+            if row is None or _normalizar_papel(row[0]) != ADM:
+                raise PermissionError("Apenas administrador pode editar docentes.")
+            if id_alvo == id_admin and papel != ADM:
+                raise ValueError("Não é possível remover o próprio papel de administrador.")
+
+            if pin:
+                cur.execute(
+                    "UPDATE docentes SET nome = %s, email = %s, papel = %s, pin_hash = %s WHERE id_docente = %s",
+                    (nome, email, papel, gerar_hash_pin(pin), id_alvo),
+                )
+            else:
+                cur.execute(
+                    "UPDATE docentes SET nome = %s, email = %s, papel = %s WHERE id_docente = %s",
+                    (nome, email, papel, id_alvo),
+                )
+            if cur.rowcount == 0:
+                raise ValueError("Docente não encontrado.")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def excluir_docente(id_alvo: int, id_admin: int) -> None:
     if id_alvo == id_admin:
         raise ValueError("Não é possível excluir o próprio usuário.")

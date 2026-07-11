@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import flet as ft
 
-from compartilhado.navegacao import query_valor
+from compartilhado.navegacao import ir_para, query_valor
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
     CARD_PADDING, CARD_RADIUS, FONT_CAPTION, FONT_DISPLAY,
@@ -19,7 +19,11 @@ def tela_entrar(page: ft.Page) -> ft.View:
     _ip = query_valor(page, "api_host") or parsed.hostname or page.sessao_ip or "127.0.0.1"
     _api_porta = query_valor(page, "api_port") or query_valor(page, "api") or page.sessao_porta or "8000"
     _api_secure = (query_valor(page, "api_secure") or "0") == "1"
-    _codigo_url = (query_valor(page, "codigo") or page.sessao_codigo or "").upper()
+    if getattr(page, "_forcar_entrada_manual", False):
+        page._forcar_entrada_manual = False
+        _codigo_url = ""
+    else:
+        _codigo_url = (query_valor(page, "codigo") or page.sessao_codigo or "").upper()
 
     page.sessao_ip = _ip
     page.sessao_porta = str(_api_porta)
@@ -61,7 +65,7 @@ def tela_entrar(page: ft.Page) -> ft.View:
         else:
             page.sessao_codigo = codigo
             page.sessao_apelido = apelido
-            page.go("/lobby")
+            ir_para(page, "/lobby")
         page.update()
 
     campo_apelido.on_submit = entrar
