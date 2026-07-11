@@ -53,6 +53,7 @@ a = Analysis(
         'dotenv',
         'qrcode', 'qrcode.image.base', 'qrcode.image.pure', 'qrcode.image.svg',
         'PIL', 'PIL.Image', 'PIL.ImageDraw',
+        'psutil',
         'websockets', 'websockets.legacy', 'websockets.legacy.client',
         'uvicorn', 'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto',
         'uvicorn.protocols', 'uvicorn.protocols.http', 'uvicorn.protocols.http.auto',
