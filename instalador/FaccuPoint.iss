@@ -1,5 +1,7 @@
 #define AppName "FaccuPoint"
+#ifndef AppVersion
 #define AppVersion "1.0.0"
+#endif
 #define AppPublisher "Jackson Matiazzi"
 #define AppExeName "FaccuPoint.exe"
 

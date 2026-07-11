@@ -1,0 +1,82 @@
+name: Build Windows
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Gerar executavel e instalador
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            frontend/requirements.txt
+
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r frontend/requirements.txt
+          python -m pip install pyinstaller pywin32
+
+      - name: Executar testes
+        run: python -m unittest discover -s tests -v
+
+      - name: Gerar FaccuPoint.exe
+        run: pyinstaller --clean --noconfirm FaccuPoint.spec
+
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Gerar instalador
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
+            throw "Versao invalida no arquivo VERSION: $version"
+          }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "instalador\FaccuPoint.iss"
+
+      - name: Gerar checksums
+        shell: pwsh
+        run: |
+          Get-FileHash dist\FaccuPoint.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  FaccuPoint.exe" } |
+            Set-Content dist\FaccuPoint.exe.sha256
+          Get-FileHash dist\FaccuPoint-Setup.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  FaccuPoint-Setup.exe" } |
+            Set-Content dist\FaccuPoint-Setup.exe.sha256
+
+      - name: Publicar arquivos do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaccuPoint-Windows-${{ github.run_number }}
+          path: |
+            dist/FaccuPoint.exe
+            dist/FaccuPoint.exe.sha256
+            dist/FaccuPoint-Setup.exe
+            dist/FaccuPoint-Setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
