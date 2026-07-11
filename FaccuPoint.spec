@@ -51,6 +51,7 @@ a = Analysis(
         'requests', 'requests.adapters', 'requests.auth', 'requests.cookies',
         'requests.exceptions', 'requests.models', 'requests.sessions',
         'dotenv',
+        'truststore',
         'qrcode', 'qrcode.image.base', 'qrcode.image.pure', 'qrcode.image.svg',
         'PIL', 'PIL.Image', 'PIL.ImageDraw',
         'psutil',

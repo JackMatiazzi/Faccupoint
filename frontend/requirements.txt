@@ -2,6 +2,7 @@ flet==0.28.3
 requests==2.33.1
 python-dotenv==1.2.2
 qrcode==8.0
+Pillow==12.3.0
 websockets
 psutil
 truststore
