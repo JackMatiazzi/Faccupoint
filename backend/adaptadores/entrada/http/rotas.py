@@ -1,4 +1,5 @@
 
+import math
 import threading
 import time
 from collections import defaultdict
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 _tentativas_login: dict[str, list[float]] = defaultdict(list)
 _lock_login = threading.Lock()
 _MAX_TENTATIVAS_LOGIN = 5
-_JANELA_LOGIN_SEGUNDOS = 300
+_JANELA_LOGIN_SEGUNDOS = 60
 
 
 def _checar_rate_limit_login(email: str) -> None:
@@ -18,7 +19,12 @@ def _checar_rate_limit_login(email: str) -> None:
         tentativas = _tentativas_login[email]
         tentativas[:] = [t for t in tentativas if agora - t < _JANELA_LOGIN_SEGUNDOS]
         if len(tentativas) >= _MAX_TENTATIVAS_LOGIN:
-            raise HTTPException(status_code=429, detail="muitas tentativas, aguarde um minuto")
+            segundos = max(1, math.ceil(_JANELA_LOGIN_SEGUNDOS - (agora - min(tentativas))))
+            raise HTTPException(
+                status_code=429,
+                detail=f"muitas tentativas, tente novamente em {segundos} segundos",
+                headers={"Retry-After": str(segundos)},
+            )
 
 
 def _registrar_falha_login(email: str) -> None:
