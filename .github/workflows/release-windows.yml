@@ -1,0 +1,94 @@
+name: Publicar versao Windows
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Gerar e publicar release
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Validar tag e versao
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $tag = $env:GITHUB_REF_NAME
+
+          if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
+            throw "Versao invalida no arquivo VERSION: $version"
+          }
+          if ($tag -ne "v$version") {
+            throw "A tag $tag nao corresponde ao VERSION ($version). Use a tag v$version."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            frontend/requirements.txt
+
+      - name: Instalar dependencias
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r frontend/requirements.txt
+          python -m pip install flet-desktop==0.28.3 flet-web==0.28.3 pyinstaller pywin32
+
+      - name: Executar testes
+        run: python -m unittest discover -s tests -v
+
+      - name: Gerar FaccuPoint.exe
+        run: pyinstaller --clean --noconfirm FaccuPoint.spec
+
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Gerar instalador
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" "instalador\FaccuPoint.iss"
+
+      - name: Gerar checksums
+        shell: pwsh
+        run: |
+          Get-FileHash dist\FaccuPoint.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  FaccuPoint.exe" } |
+            Set-Content dist\FaccuPoint.exe.sha256
+          Get-FileHash dist\FaccuPoint-Setup.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  FaccuPoint-Setup.exe" } |
+            Set-Content dist\FaccuPoint-Setup.exe.sha256
+
+      - name: Criar GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            dist\FaccuPoint.exe `
+            dist\FaccuPoint.exe.sha256 `
+            dist\FaccuPoint-Setup.exe `
+            dist\FaccuPoint-Setup.exe.sha256 `
+            --verify-tag `
+            --title "FaccuPoint ${{ steps.version.outputs.version }}" `
+            --generate-notes
