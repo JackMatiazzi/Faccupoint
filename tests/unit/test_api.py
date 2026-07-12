@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -21,11 +23,14 @@ class ApiSmokeTest(unittest.TestCase):
         self.assertEqual(response.headers["x-frame-options"], "DENY")
 
     def test_endpoint_informa_versao_do_manifesto(self):
+        caminho = Path(__file__).resolve().parents[2] / ".release-please-manifest.json"
+        versao_esperada = str(json.loads(caminho.read_text(encoding="utf-8"))["."])
+
         with patch.dict("os.environ", {"APP_VERSION": ""}):
             response = self.client.get("/versao")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"versao": "1.0.1"})
+        self.assertEqual(response.json(), {"versao": versao_esperada})
 
     def test_protected_route_rejects_missing_token_without_database(self):
         response = self.client.get("/quizzes", params={"id_docente": 1})
