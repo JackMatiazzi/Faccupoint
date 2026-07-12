@@ -47,6 +47,8 @@ _SEM_JANELA = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
 def _matar_flet_clientes() -> None:
+    if os.name != "nt":
+        return
     try:
         subprocess.call(
             ["taskkill", "/F", "/IM", "flet.exe"],
@@ -59,6 +61,16 @@ def _matar_flet_clientes() -> None:
 
 
 def _matar(proc) -> None:
+    if os.name != "nt":
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        return
     try:
         subprocess.call(
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
@@ -71,6 +83,8 @@ def _matar(proc) -> None:
 
 
 def _matar_porta(porta: int) -> None:
+    if os.name != "nt":
+        return
     try:
         saida = subprocess.check_output(
             ["netstat", "-ano", "-p", "tcp"],
@@ -99,11 +113,12 @@ _GITHUB_ASSET = "FaccuPoint.zip"
 
 
 def _versao_local() -> str:
-    version_file = ROOT / "VERSION"
-    try:
-        return version_file.read_text().strip()
-    except Exception:
-        return "0.0.0"
+    for version_file in (_MEIPASS / "VERSION", ROOT / "VERSION"):
+        try:
+            return version_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+    return "0.0.0"
 
 
 def _verificar_atualizacao(api_url: str) -> None:
@@ -221,7 +236,29 @@ def _iniciar_keepalive(api_url: str, parar: threading.Event) -> None:
     t.start()
 
 
+def _testar_pacote() -> None:
+    import base64
+
+    sys.path.insert(0, str(_MEIPASS))
+    import psutil
+    from aluno.main import main as aluno_main
+    from professor.main import main as professor_main
+    from professor.telas.sessao_professor import _gerar_qrcode_b64
+
+    png = base64.b64decode(_gerar_qrcode_b64("http://127.0.0.1:8081?codigo=TESTE"))
+    if not png.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("falha ao gerar QR Code no pacote")
+    if not callable(aluno_main) or not callable(professor_main) or not psutil.net_if_addrs():
+        raise RuntimeError("modulos essenciais indisponiveis no pacote")
+    if _versao_local() == "0.0.0":
+        raise RuntimeError("arquivo de versao ausente do pacote")
+
+
 def main() -> None:
+    if "--smoke-test-package" in sys.argv:
+        _testar_pacote()
+        return
+
     _matar_flet_clientes()
     print("abrindo o faccupoint")
     api_url = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")

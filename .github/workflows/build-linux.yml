@@ -1,0 +1,65 @@
+name: Build Linux
+
+on:
+  push:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Gerar executavel Linux x86_64
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            frontend/requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt -r frontend/requirements.txt
+          python -m pip install flet-desktop==0.28.3 flet-web==0.28.3 pyinstaller
+
+      - name: Executar testes
+        run: python -m unittest discover -s tests -v
+
+      - name: Gerar executavel
+        run: pyinstaller --clean --noconfirm FaccuPoint-Linux.spec
+
+      - name: Validar pacote gerado
+        run: dist/FaccuPoint --smoke-test-package
+
+      - name: Empacotar e gerar checksum
+        run: |
+          chmod +x dist/FaccuPoint
+          tar -C dist -czf FaccuPoint-Linux-x86_64.tar.gz FaccuPoint
+          sha256sum FaccuPoint-Linux-x86_64.tar.gz > FaccuPoint-Linux-x86_64.tar.gz.sha256
+
+      - name: Publicar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: FaccuPoint-Linux-x86_64-${{ github.run_number }}
+          path: |
+            FaccuPoint-Linux-x86_64.tar.gz
+            FaccuPoint-Linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
