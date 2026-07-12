@@ -84,6 +84,7 @@ a.datas += (
     + arquivos_professor
     + arquivos_aluno
     + arquivos_compartilhados
+    + [('VERSION', str(Path('VERSION').resolve()), 'DATA')]
 )
 pyz = PYZ(a.pure)
 
