@@ -115,10 +115,14 @@ _GITHUB_SETUP_SHA256 = f"{_GITHUB_SETUP}.sha256"
 
 
 def _versao_local() -> str:
-    for version_file in (_MEIPASS / "VERSION", ROOT / "VERSION"):
+    import json
+
+    nome_manifesto = ".release-please-manifest.json"
+    for version_file in (_MEIPASS / nome_manifesto, ROOT / nome_manifesto):
         try:
-            return version_file.read_text(encoding="utf-8").strip()
-        except OSError:
+            manifesto = json.loads(version_file.read_text(encoding="utf-8"))
+            return str(manifesto["."])
+        except (OSError, KeyError, TypeError, ValueError):
             continue
     return "0.0.0"
 

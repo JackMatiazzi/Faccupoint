@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag criada pelo Release Please
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -21,19 +27,22 @@ jobs:
     steps:
       - name: Baixar o codigo
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Validar tag e versao
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content VERSION -Raw).Trim()
-          $tag = $env:GITHUB_REF_NAME
+          $manifest = Get-Content .release-please-manifest.json -Raw | ConvertFrom-Json
+          $version = $manifest.PSObject.Properties['.'].Value
+          $tag = "${{ inputs.tag || github.ref_name }}"
 
           if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
-            throw "Versao invalida no arquivo VERSION: $version"
+            throw "Versao invalida no manifesto: $version"
           }
           if ($tag -ne "v$version") {
-            throw "A tag $tag nao corresponde ao VERSION ($version). Use a tag v$version."
+            throw "A tag $tag nao corresponde ao manifesto ($version). Use a tag v$version."
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
@@ -84,11 +93,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME `
-            dist\FaccuPoint.exe `
-            dist\FaccuPoint.exe.sha256 `
-            dist\FaccuPoint-Setup.exe `
-            dist\FaccuPoint-Setup.exe.sha256 `
-            --verify-tag `
-            --title "FaccuPoint ${{ steps.version.outputs.version }}" `
-            --generate-notes
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          $arquivos = @(
+            "dist\FaccuPoint.exe",
+            "dist\FaccuPoint.exe.sha256",
+            "dist\FaccuPoint-Setup.exe",
+            "dist\FaccuPoint-Setup.exe.sha256"
+          )
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @arquivos --clobber
+          } else {
+            gh release create $tag @arquivos --verify-tag --title "FaccuPoint ${{ steps.version.outputs.version }}" --generate-notes
+          }

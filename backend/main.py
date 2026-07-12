@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +27,17 @@ def _cors_origins() -> list[str]:
     return [origem.strip() for origem in valor.split(",") if origem.strip()]
 
 
+def _versao_app() -> str:
+    definida = os.getenv("APP_VERSION", "").strip()
+    if definida:
+        return definida
+    try:
+        caminho = Path(__file__).resolve().parents[1] / ".release-please-manifest.json"
+        return str(json.loads(caminho.read_text(encoding="utf-8"))["."])
+    except (OSError, KeyError, TypeError, ValueError):
+        return "0.0.0"
+
+
 def create_app(*, run_migrations: bool = True) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -35,7 +48,7 @@ def create_app(*, run_migrations: bool = True) -> FastAPI:
     desabilitar_docs = os.getenv("DISABLE_DOCS", "0") == "1"
     application = FastAPI(
         title="Faccupoint API",
-        version="0.1.0",
+        version=_versao_app(),
         docs_url=None if desabilitar_docs else "/docs",
         redoc_url=None if desabilitar_docs else "/redoc",
         lifespan=lifespan,
@@ -66,7 +79,7 @@ def create_app(*, run_migrations: bool = True) -> FastAPI:
 
     @application.get("/versao", tags=["status"])
     def versao():
-        return {"versao": os.getenv("APP_VERSION", "1.0.0")}
+        return {"versao": _versao_app()}
 
     return application
 

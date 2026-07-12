@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "bfaabfb7080f64ca3c1ae60e428942e889d7c721",
+  "release-type": "simple",
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "package-name": "FaccuPoint",
+      "include-component-in-tag": false
+    }
+  }
+}

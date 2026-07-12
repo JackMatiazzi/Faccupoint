@@ -5,12 +5,18 @@ on:
     branches:
       - "**"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag criada pelo Release Please
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-linux-${{ github.ref }}
+  group: build-linux-${{ inputs.tag || github.ref }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
@@ -22,6 +28,8 @@ jobs:
     steps:
       - name: Baixar o codigo
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -63,3 +71,26 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+  anexar-release:
+    name: Anexar pacote a Release
+    if: ${{ inputs.tag != '' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar artefato Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: FaccuPoint-Linux-x86_64-${{ github.run_number }}
+
+      - name: Anexar arquivos
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release upload "${{ inputs.tag }}" \
+            FaccuPoint-Linux-x86_64.tar.gz \
+            FaccuPoint-Linux-x86_64.tar.gz.sha256 \
+            --clobber
