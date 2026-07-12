@@ -20,6 +20,13 @@ class ApiSmokeTest(unittest.TestCase):
         self.assertEqual(response.headers["x-content-type-options"], "nosniff")
         self.assertEqual(response.headers["x-frame-options"], "DENY")
 
+    def test_endpoint_informa_versao_do_manifesto(self):
+        with patch.dict("os.environ", {"APP_VERSION": ""}):
+            response = self.client.get("/versao")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"versao": "1.0.1"})
+
     def test_protected_route_rejects_missing_token_without_database(self):
         response = self.client.get("/quizzes", params={"id_docente": 1})
         self.assertEqual(response.status_code, 401)

@@ -62,7 +62,11 @@ a.datas += (
     + arquivos_professor
     + arquivos_aluno
     + arquivos_compartilhados
-    + [('VERSION', str(Path('VERSION').resolve()), 'DATA')]
+    + [(
+        '.release-please-manifest.json',
+        str(Path('.release-please-manifest.json').resolve()),
+        'DATA',
+    )]
 )
 pyz = PYZ(a.pure)
 

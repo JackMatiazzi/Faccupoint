@@ -52,9 +52,10 @@ jobs:
       - name: Gerar instalador
         shell: pwsh
         run: |
-          $version = (Get-Content VERSION -Raw).Trim()
+          $manifest = Get-Content .release-please-manifest.json -Raw | ConvertFrom-Json
+          $version = $manifest.PSObject.Properties['.'].Value
           if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
-            throw "Versao invalida no arquivo VERSION: $version"
+            throw "Versao invalida no manifesto: $version"
           }
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "instalador\FaccuPoint.iss"
 
