@@ -109,7 +109,9 @@ def _matar_porta(porta: int) -> None:
 
 
 _GITHUB_REPO = "JackMatiazzi/Faccupoint"
-_GITHUB_ASSET = "FaccuPoint.zip"
+_GITHUB_API_LATEST = f"https://api.github.com/repos/{_GITHUB_REPO}/releases/latest"
+_GITHUB_SETUP = "FaccuPoint-Setup.exe"
+_GITHUB_SETUP_SHA256 = f"{_GITHUB_SETUP}.sha256"
 
 
 def _versao_local() -> str:
@@ -121,79 +123,117 @@ def _versao_local() -> str:
     return "0.0.0"
 
 
-def _verificar_atualizacao(api_url: str) -> None:
-    if _FROZEN:
-        return
+def _chave_versao(valor: str) -> tuple[int, int, int, int, str] | None:
+    import re
 
-    import hashlib
-    import urllib.request
-    import urllib.error
-    import json
-    import zipfile
-    import tempfile
-    import shutil
-
-    try:
-        resp = urllib.request.urlopen(api_url.rstrip("/") + "/versao", timeout=8)
-        dados = json.loads(resp.read())
-        versao_remota = dados.get("versao", "")
-    except Exception:
-        return
-
-    versao_local = _versao_local()
-    if versao_remota == versao_local or not versao_remota:
-        return
-
-    print(f"atualizacao disponivel: {versao_local} → {versao_remota}")
-    print("baixando atualizacao...")
-
-    base_release = (
-        f"https://github.com/{_GITHUB_REPO}/releases/download/v{versao_remota}"
+    correspondencia = re.fullmatch(
+        r"v?(\d+)\.(\d+)\.(\d+)(?:[-.]([0-9A-Za-z.-]+))?",
+        valor.strip(),
     )
-    url_zip = f"{base_release}/{_GITHUB_ASSET}"
-    url_sha = f"{base_release}/{_GITHUB_ASSET}.sha256"
+    if correspondencia is None:
+        return None
+    principal = tuple(int(item) for item in correspondencia.group(1, 2, 3))
+    pre_release = correspondencia.group(4)
+    return (*principal, 1 if pre_release is None else 0, pre_release or "")
 
+
+def _versao_mais_nova(remota: str, local: str) -> bool:
+    chave_remota = _chave_versao(remota)
+    chave_local = _chave_versao(local)
+    return chave_remota is not None and chave_local is not None and chave_remota > chave_local
+
+
+def _buscar_atualizacao() -> dict | None:
+    import json
+    import urllib.request
+
+    requisicao = urllib.request.Request(
+        _GITHUB_API_LATEST,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"FaccuPoint/{_versao_local()}",
+        },
+    )
+    with urllib.request.urlopen(requisicao, timeout=10) as resposta:
+        release = json.load(resposta)
+
+    versao = str(release.get("tag_name", "")).removeprefix("v")
+    if not _versao_mais_nova(versao, _versao_local()):
+        return None
+
+    assets = {
+        str(asset.get("name")): str(asset.get("browser_download_url"))
+        for asset in release.get("assets", [])
+    }
+    setup_url = assets.get(_GITHUB_SETUP)
+    sha256_url = assets.get(_GITHUB_SETUP_SHA256)
+    if not setup_url or not sha256_url:
+        raise RuntimeError("release sem instalador ou SHA-256")
+    return {"versao": versao, "setup_url": setup_url, "sha256_url": sha256_url}
+
+
+def _confirmar_atualizacao(versao: str) -> bool:
+    import ctypes
+
+    resposta = ctypes.windll.user32.MessageBoxW(
+        None,
+        f"A versao {versao} do FaccuPoint esta disponivel.\n\nDeseja atualizar agora?",
+        "Atualizacao do FaccuPoint",
+        0x00000004 | 0x00000040,
+    )
+    return resposta == 6
+
+
+def _baixar_e_iniciar_atualizacao(atualizacao: dict) -> bool:
+    import hashlib
+    import re
+    import tempfile
+    import urllib.request
+
+    pasta = Path(tempfile.gettempdir()) / "FaccuPoint" / "updates"
+    pasta.mkdir(parents=True, exist_ok=True)
+    setup = pasta / f"FaccuPoint-Setup-{atualizacao['versao']}.exe"
+    download = setup.with_suffix(".download")
+
+    urllib.request.urlretrieve(atualizacao["setup_url"], download)
+    with urllib.request.urlopen(atualizacao["sha256_url"], timeout=10) as resposta:
+        sha_esperado = resposta.read().decode("utf-8").split()[0].strip().lower()
+    if re.fullmatch(r"[0-9a-f]{64}", sha_esperado) is None:
+        raise RuntimeError("arquivo SHA-256 invalido")
+
+    sha_calculado = hashlib.sha256()
+    with download.open("rb") as arquivo:
+        for bloco in iter(lambda: arquivo.read(1024 * 1024), b""):
+            sha_calculado.update(bloco)
+    if sha_calculado.hexdigest().lower() != sha_esperado:
+        download.unlink(missing_ok=True)
+        raise RuntimeError("SHA-256 do instalador nao confere")
+
+    download.replace(setup)
+    subprocess.Popen(
+        [
+            str(setup),
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/CLOSEAPPLICATIONS",
+        ],
+        creationflags=_SEM_JANELA,
+    )
+    return True
+
+
+def _verificar_atualizacao() -> bool:
+    if not _FROZEN or os.name != "nt":
+        return False
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            zip_path = os.path.join(tmp, _GITHUB_ASSET)
-            urllib.request.urlretrieve(url_zip, zip_path)
-
-            try:
-                sha_resp = urllib.request.urlopen(url_sha, timeout=8)
-                sha_esperado = sha_resp.read().decode().split()[0].strip().lower()
-            except Exception:
-                print("aviso: arquivo .sha256 nao encontrado no release — atualizacao cancelada por seguranca")
-                return
-
-            sha_calculado = hashlib.sha256(open(zip_path, "rb").read()).hexdigest().lower()
-            if sha_calculado != sha_esperado:
-                print("erro: SHA-256 do pacote nao confere — atualizacao cancelada")
-                return
-
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(tmp)
-
-            extraido = os.path.join(tmp, "FaccuPoint")
-            origem = extraido if os.path.isdir(extraido) else tmp
-
-            for item in os.listdir(origem):
-                src = os.path.join(origem, item)
-                dst = str(ROOT / item)
-                if os.path.isdir(src):
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
-                else:
-                    shutil.copy2(src, dst)
-
-        print(f"atualizado para {versao_remota}, reiniciando...")
-        subprocess.Popen(
-            [sys.executable, str(ROOT / "launcher.py")],
-            creationflags=_SEM_JANELA,
-        )
-        sys.exit(0)
+        atualizacao = _buscar_atualizacao()
+        if atualizacao is None or not _confirmar_atualizacao(atualizacao["versao"]):
+            return False
+        return _baixar_e_iniciar_atualizacao(atualizacao)
     except Exception as e:
-        print(f"falha na atualizacao ({e}), continuando com versao atual")
+        print(f"falha ao verificar atualizacao ({e}), continuando com versao atual")
+        return False
 
 
 def _aguardar_backend(api_url: str, remoto: bool) -> None:
@@ -264,8 +304,8 @@ def main() -> None:
     api_url = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
     backend_remoto = not ("127.0.0.1" in api_url or "localhost" in api_url)
 
-    if backend_remoto:
-        _verificar_atualizacao(api_url)
+    if _verificar_atualizacao():
+        return
 
     porta_aluno = int(os.getenv("PORTA_ALUNO", "8081"))
     _matar_porta(porta_aluno)
