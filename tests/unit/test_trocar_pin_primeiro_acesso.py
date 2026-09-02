@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch
 
@@ -15,6 +16,12 @@ _DOCENTE_POR_ID = (7, "Prof", _DOCENTE_EMAIL, "prof", True, "hash-do-pin-atual")
 
 class TrocarPinPrimeiroAcessoTest(unittest.TestCase):
     def setUp(self):
+        # /auth/trocar-pin reemite o token no fim; gerar_token_docente exige SECRET_KEY.
+        # No CI nao existe backend/.env, entao definimos um valor de teste.
+        segredo = patch.dict(os.environ, {"SECRET_KEY": "teste-ci"}, clear=False)
+        segredo.start()
+        self.addCleanup(segredo.stop)
+
         self.app = create_app(run_migrations=False)
         self.app.dependency_overrides[rotas.docente_trocando_pin] = lambda: {
             "id_docente": 7,
