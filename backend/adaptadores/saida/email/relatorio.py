@@ -192,6 +192,28 @@ def enviar_email_teste(destino: str) -> None:
     )
 
 
+def enviar_email_solicitacao_troca_pin(
+    destinos: list[str],
+    nome_solicitante: str,
+    email_solicitante: str,
+) -> None:
+    texto = (
+        f"O docente {nome_solicitante} ({email_solicitante}) solicitou uma troca de PIN no FaccuPoint.\n\n"
+        "Entre no aplicativo, abra Professores e use \"Resetar PIN\" para gerar um PIN provisório. "
+        "Repasse esse PIN pessoalmente ao docente; ele define o PIN definitivo no primeiro acesso.\n\n"
+        "Nenhuma ação é necessária se você não reconhece essa solicitação.\n"
+    )
+    for destino in destinos:
+        try:
+            _enviar_email(
+                destino=destino,
+                assunto="Solicitação de troca de PIN - FaccuPoint",
+                texto=texto,
+            )
+        except Exception:
+            logger.exception("falha ao notificar administrador %s", destino)
+
+
 def _montar_texto(relatorio: dict) -> str:
     respostas_validas = [r for r in relatorio["respostas"] if r["ordem"] is not None]
     n_alunos = len({r["aluno"] for r in relatorio["respostas"]})

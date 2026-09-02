@@ -14,6 +14,25 @@ import requests
 load_dotenv()
 _BASE = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
 _TOKEN: str | None = None
+_on_auth_lost = None
+
+
+def set_on_auth_lost(callback) -> None:
+    """Chamado quando o backend recusa a sessao (token invalidado, PIN resetado etc.)."""
+    global _on_auth_lost
+    _on_auth_lost = callback
+
+
+def _tratar_sessao_perdida(path: str, status_code: int, detail: str) -> None:
+    if path.startswith("/auth/") or _TOKEN is None:
+        return
+    if status_code == 401 or (status_code == 403 and "PIN" in detail):
+        limpar_token()
+        if _on_auth_lost is not None:
+            try:
+                _on_auth_lost()
+            except Exception:
+                pass
 
 
 class ApiError(Exception):
@@ -47,6 +66,7 @@ def _req(method: str, path: str, **kwargs) -> dict | list:
             retry_after = int(r.headers.get("Retry-After", ""))
         except (TypeError, ValueError):
             retry_after = None
+        _tratar_sessao_perdida(path, r.status_code, str(detail))
         raise ApiError(r.status_code, str(detail), retry_after=retry_after)
     return r.json()
 
@@ -58,6 +78,8 @@ class Docente:
     email: str
     papel: str
     token: str | None = None
+    precisa_trocar_pin: bool = False
+    solicitou_troca_pin: bool = False
 
 
 def limpar_token() -> None:
@@ -84,6 +106,17 @@ def login(email: str, pin: str) -> Docente:
     data = _req("POST", "/auth/login", json={"email": email, "pin": pin})
     _TOKEN = str(data["token"])
     return Docente(**data)
+
+
+def esqueci_senha(email: str) -> None:
+    _req("POST", "/auth/esqueci-senha", json={"email": email})
+
+
+def trocar_pin(pin_atual: str, novo_pin: str) -> None:
+    global _TOKEN
+    data = _req("POST", "/auth/trocar-pin", json={"pin_atual": pin_atual, "novo_pin": novo_pin})
+    if isinstance(data, dict) and data.get("token"):
+        _TOKEN = str(data["token"])
 
 
 def listar_docentes() -> list[Docente]:
@@ -132,6 +165,7 @@ class Pergunta:
     ordem: int
     alternativas: list[Alternativa]
     link_midia: str | None = None
+    peso: int = 1
 
 
 def listar_quizzes_do_docente(id_docente: int) -> list[Quiz]:
@@ -183,23 +217,25 @@ def listar_perguntas(id_quiz: int) -> list[Pergunta]:
             Alternativa(id_alternativa=a["id"], texto=a["texto"], correta=a["correta"])
             for a in r.get("alternativas", [])
         ]
-        result.append(Pergunta(id_pergunta=r["id_pergunta"], enunciado=r["enunciado"], ordem=r["ordem"], alternativas=alts, link_midia=r.get("link_midia")))
+        result.append(Pergunta(id_pergunta=r["id_pergunta"], enunciado=r["enunciado"], ordem=r["ordem"], alternativas=alts, link_midia=r.get("link_midia"), peso=int(r.get("peso", 1))))
     return result
 
 
-def salvar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None) -> None:
+def salvar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
     _req("POST", f"/quizzes/{id_quiz}/perguntas", json={
         "enunciado": enunciado,
         "alternativas": alternativas,
         "link_midia": link_midia,
+        "peso": peso,
     })
 
 
-def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None) -> None:
+def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
     _req("PUT", f"/quizzes/{id_quiz}/perguntas/{id_pergunta}", json={
         "enunciado": enunciado,
         "alternativas": alternativas,
         "link_midia": link_midia,
+        "peso": peso,
     })
 
 

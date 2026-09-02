@@ -30,6 +30,11 @@ def verificar_pin(pin: str, hash_armazenado: str) -> bool:
         return False
 
 
+def fingerprint_pin(pin_hash: str) -> str:
+    """Marca curta do pin_hash atual. Muda a cada troca de PIN e invalida tokens antigos."""
+    return hashlib.sha256((pin_hash or "").encode("utf-8")).hexdigest()[:16]
+
+
 def _chave_token() -> bytes:
     segredo = os.environ.get("SECRET_KEY")
     if not segredo:
@@ -46,11 +51,12 @@ def _b64url_decode(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + padding)
 
 
-def gerar_token_docente(id_docente: int, email: str, papel: str) -> str:
+def gerar_token_docente(id_docente: int, email: str, papel: str, pin_hash: str) -> str:
     payload = {
         "id_docente": id_docente,
         "email": email,
         "papel": papel,
+        "pv": fingerprint_pin(pin_hash),
         "exp": int(time.time()) + _TOKEN_TTL_SEGUNDOS,
     }
     payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))

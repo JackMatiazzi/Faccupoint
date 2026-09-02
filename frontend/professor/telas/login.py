@@ -1,9 +1,10 @@
 
 import asyncio
 import flet as ft
+from compartilhado.tema import botao_tema
 
 from compartilhado.sistema_design.tokens import (
-    ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING,
+    ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING, TEXT_ON_ACCENT,
     CARD_RADIUS, CARD_W, FONT_CAPTION, FONT_DISPLAY, SPACE_MD,
     TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
 )
@@ -29,14 +30,14 @@ def tela_login(page: ft.Page) -> ft.View:
     )
     _aviso_texto = aviso_conexao.controls[1]
 
-    campo_email = campo("Email", hint_text="seu@email.com", keyboard_type=ft.KeyboardType.EMAIL)
+    campo_email = campo("Email", hint_text="seu@email.com", keyboard_type=ft.KeyboardType.EMAIL, autofocus=True)
     campo_pin = campo("PIN", hint_text="4 dígitos", password=True, can_reveal_password=True,
                       keyboard_type=ft.KeyboardType.NUMBER, max_length=4)
 
     btn_entrar = ft.ElevatedButton(
         text="Entrar",
         bgcolor=ACCENT,
-        color=TEXT_PRIMARY,
+        color=TEXT_ON_ACCENT,
         width=CARD_W,
         height=BTN_H,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
@@ -53,7 +54,14 @@ def tela_login(page: ft.Page) -> ft.View:
                 page.docente_nome = docente.nome
                 page.docente_email = docente.email
                 page.docente_papel = docente.papel
-                page.go("/painel-professor")
+                if docente.precisa_trocar_pin:
+                    page.precisa_trocar_pin = True
+                    page.pin_temporario = pin
+                    page.go("/trocar-pin")
+                else:
+                    page.precisa_trocar_pin = False
+                    page.pin_temporario = None
+                    page.go("/painel-professor")
                 return
             except ApiError as ex:
                 servidor_fora = ex.status == 0 and "fora do ar" in ex.detail
@@ -114,13 +122,20 @@ def tela_login(page: ft.Page) -> ft.View:
         content=ft.Column(
             spacing=SPACE_MD,
             controls=[
-                ft.Text("FaccuPoint", size=FONT_DISPLAY, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text("FaccuPoint", size=FONT_DISPLAY, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                        botao_tema(page),
+                    ],
+                ),
                 ft.Text("Para professores", size=FONT_CAPTION, color=TEXT_SECONDARY),
                 ft.Divider(height=8, color="transparent"),
                 campo_email,
                 campo_pin,
                 erro,
                 btn_entrar,
+                ft.TextButton(text="Esqueci minha senha", on_click=lambda _: page.go("/esqueci-senha")),
                 aviso_conexao,
             ],
         ),

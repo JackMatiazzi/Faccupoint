@@ -1,11 +1,12 @@
 
 import flet as ft
+from compartilhado.tema import botao_tema
 
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube, url_thumb_youtube
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
     FONT_BODY, FONT_CAPTION, FONT_DISPLAY, FONT_TITLE, TEXT_DANGER, TEXT_PRIMARY,
-    TEXT_SECONDARY, TEXT_SUCCESS, BTN_GREEN_TEXT,
+    TEXT_SECONDARY, TEXT_SUCCESS, TEXT_ON_ACCENT, BTN_GREEN_TEXT,
     G4, G8, G12, G16, G24, G32, G48,
     CARD_RADIUS, CARD_PADDING_SM, SPACE_MD,
 )
@@ -38,7 +39,7 @@ def _step_card(num: str, titulo: str, desc: str, icon: str) -> ft.Container:
                     ft.Container(
                         width=G24, height=G24, alignment=ft.alignment.center,
                         bgcolor=ACCENT, border_radius=G16,
-                        content=ft.Text(num, color=TEXT_PRIMARY, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
+                        content=ft.Text(num, color=TEXT_ON_ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
                     ),
                     ft.Icon(icon, color=TEXT_SECONDARY, size=G16),
                 ]),
@@ -79,7 +80,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
 
     busca = campo("Buscar quiz", prefix_icon=ft.Icons.SEARCH, height=BTN_H)
     lista_quizzes = ft.Column(spacing=G8, scroll=ft.ScrollMode.AUTO)
-    contador = ft.Text("0 quizzes", color=TEXT_PRIMARY, size=FONT_CAPTION)
+    contador = ft.Text("0 quizzes", color=TEXT_ON_ACCENT, size=FONT_CAPTION)
     _quizzes = []
     _compartilhados = []
     _aba = ["meus"]
@@ -94,10 +95,11 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     quiz_midia_f = campo("Imagem ou vídeo para todas as perguntas (opcional)", prefix_icon=ft.Icons.IMAGE_OUTLINED)
     quiz_midia_preview = ft.Container(visible=False, padding=ft.padding.symmetric(vertical=G8))
     enunciado_f = campo("Enunciado da pergunta", multiline=True, min_lines=4, max_lines=6)
+    peso_f = campo("Peso da pergunta", value="1", suffix_text="ponto(s)", keyboard_type=ft.KeyboardType.NUMBER)
     alternativas_col = ft.Column(spacing=G8)
     alternativas = []
     lista_perguntas = ft.Column(spacing=G8, scroll=ft.ScrollMode.AUTO)
-    contador_perguntas = ft.Text("0 perguntas", color=TEXT_PRIMARY, size=FONT_CAPTION)
+    contador_perguntas = ft.Text("0 perguntas", color=TEXT_ON_ACCENT, size=FONT_CAPTION)
     status_salvo = ft.Text("Salvo", color=TEXT_SECONDARY, size=FONT_CAPTION)
 
     if not hasattr(page, "cache_perguntas_quiz"):
@@ -138,6 +140,8 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
         api.limpar_token()
         page.docente_id = None
         page.docente_nome = page.docente_email = page.docente_papel = ""
+        page.precisa_trocar_pin = False
+        page.pin_temporario = None
         page.go("/")
 
     def abrir_sala(e=None):
@@ -305,7 +309,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                 ft.Container(
                     width=_ICON_SZ, height=_ICON_SZ, alignment=ft.alignment.center,
                     bgcolor=ACCENT, border=ft.border.all(2, TEXT_PRIMARY), border_radius=BTN_RADIUS,
-                    content=ft.Icon(ft.Icons.QUESTION_MARK, color=TEXT_PRIMARY, size=G32 + G8),
+                    content=ft.Icon(ft.Icons.QUESTION_MARK, color=TEXT_ON_ACCENT, size=G32 + G8),
                 ),
                 ft.Text("Nenhum quiz cadastrado", color=TEXT_PRIMARY, size=FONT_DISPLAY, weight=ft.FontWeight.BOLD),
                 ft.Text(
@@ -325,7 +329,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                 ft.Container(
                     width=_ICON_SZ, height=_ICON_SZ, alignment=ft.alignment.center,
                     bgcolor=ACCENT, border=ft.border.all(2, TEXT_PRIMARY), border_radius=BTN_RADIUS,
-                    content=ft.Icon(ft.Icons.CONTENT_COPY, color=TEXT_PRIMARY, size=G32 + G8),
+                    content=ft.Icon(ft.Icons.CONTENT_COPY, color=TEXT_ON_ACCENT, size=G32 + G8),
                 ),
                 ft.Text("Copie para sua lista", color=TEXT_PRIMARY, size=FONT_DISPLAY, weight=ft.FontWeight.BOLD),
                 ft.Text(
@@ -408,7 +412,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
 
     def add_alternativa(texto: str = "", correta: bool = False, atualizar: bool = True):
         campo_alt = campo(f"Alternativa {len(alternativas) + 1}", value=texto)
-        check = ft.Checkbox(value=correta, fill_color=ACCENT, check_color=BG_PAGE)
+        check = ft.Checkbox(value=correta, fill_color=ACCENT, check_color=TEXT_ON_ACCENT)
         alternativas.append((campo_alt, check))
 
         def remover(e):
@@ -475,6 +479,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     def limpar_pergunta(atualizar: bool = True):
         pergunta_atual[0] = None
         enunciado_f.value = ""
+        peso_f.value = "1"
         reset_alternativas()
         salvar_pergunta_btn.text = "Salvar pergunta"
         erro.value = ""
@@ -484,6 +489,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     def carregar_pergunta(pergunta):
         pergunta_atual[0] = pergunta.id_pergunta
         enunciado_f.value = pergunta.enunciado
+        peso_f.value = str(pergunta.peso)
         alternativas.clear()
         alternativas_col.controls.clear()
         for alt in pergunta.alternativas:
@@ -530,6 +536,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                         ]),
                         ft.Row(wrap=True, spacing=G8, controls=[
                             _chip(f"{len(p.alternativas)} alts"),
+                            _chip(f"{p.peso} ponto{'s' if p.peso != 1 else ''}", ft.Icons.STAR_OUTLINE),
                             *[_chip(c) for c in corretas[:2]],
                         ]),
                     ]),
@@ -584,6 +591,14 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
             erro.value = "Marque a alternativa correta."
             page.update()
             return
+        try:
+            peso = int(peso_f.value.strip())
+            if not 1 <= peso <= 100:
+                raise ValueError
+        except ValueError:
+            erro.value = "O peso deve ser um numero inteiro entre 1 e 100."
+            page.update()
+            return
 
         id_pergunta = pergunta_atual[0]
         nome_quiz = titulo_f.value.strip() or "Novo quiz"
@@ -606,9 +621,9 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                     page.quiz_editando_id = quiz_atual[0]
                     carregar_quizzes(atualizar=False)
                 if id_pergunta:
-                    api.atualizar_pergunta(quiz_atual[0], id_pergunta, texto, alts)
+                    api.atualizar_pergunta(quiz_atual[0], id_pergunta, texto, alts, peso=peso)
                 else:
-                    api.salvar_pergunta(quiz_atual[0], texto, alts)
+                    api.salvar_pergunta(quiz_atual[0], texto, alts, peso=peso)
                 status_salvo.value = "salvo agora"
                 perguntas_cache.pop(quiz_atual[0], None)
                 limpar_pergunta(atualizar=False)
@@ -699,6 +714,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                                     controls=[
                                         ft.Text("Editando pergunta", color=TEXT_PRIMARY, size=FONT_TITLE, weight=ft.FontWeight.BOLD),
                                         enunciado_f,
+                                        peso_f,
                                         ft.Row(
                                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                             controls=[
@@ -770,7 +786,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                     ft.Container(
                         width=_LOGO_SZ, height=_LOGO_SZ, alignment=ft.alignment.center,
                         bgcolor=ACCENT, border=ft.border.all(1, TEXT_PRIMARY), border_radius=BTN_RADIUS,
-                        content=ft.Text("Fp", color=TEXT_PRIMARY, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
+                        content=ft.Text("Fp", color=TEXT_ON_ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
                     ),
                     ft.Column(spacing=0, controls=[
                         ft.Text("faccupoint", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD),
@@ -788,6 +804,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     topbar_actions = [
         topbar_status,
         btn_abrir_sala,
+        botao_tema(page),
         ft.OutlinedButton(
             text=page.docente_nome or "Professor",
             icon=ft.Icons.PERSON_OUTLINE, height=BTN_H,
@@ -796,10 +813,31 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
         ),
     ]
     if page.docente_papel == "adm":
-        topbar_actions.insert(
-            0,
-            _btn_outline("Professores", on_click=lambda _: page.go("/admin-professores"), icon=ft.Icons.GROUP_OUTLINED),
+        btn_professores = _btn_outline(
+            "Professores",
+            on_click=lambda _: page.go("/admin-professores"),
+            icon=ft.Icons.GROUP_OUTLINED,
         )
+        topbar_actions.insert(0, btn_professores)
+
+        def _checar_pendencias_pin():
+            try:
+                lista = api.listar_docentes()
+            except ApiError:
+                return
+            n = sum(1 for d in lista if getattr(d, "solicitou_troca_pin", False))
+            if not n:
+                return
+            btn_professores.text = f"Professores ({n})"
+            btn_professores.tooltip = f"{n} professor(es) aguardando reset de PIN"
+            btn_professores.style = ft.ButtonStyle(
+                color=ACCENT,
+                side=ft.BorderSide(2, ACCENT),
+                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
+            )
+            page.update()
+
+        page.run_thread(_checar_pendencias_pin)
 
     return ft.View(
         route="/painel-professor",

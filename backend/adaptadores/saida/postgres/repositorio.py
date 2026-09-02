@@ -3,7 +3,7 @@ import os
 
 import psycopg2
 
-from backend.dominio.pergunta import normalizar_pergunta, validar_link_midia
+from backend.dominio.pergunta import normalizar_pergunta, validar_link_midia, validar_peso
 from backend.infraestrutura.configuracao import database_url, load_environment
 from backend.infraestrutura.seguranca import gerar_hash_pin
 
@@ -35,59 +35,78 @@ def _normalizar_papel(val: str) -> str:
     raise ValueError(f"Papel desconhecido no banco: {v!r}")
 
 
-def listar_docentes() -> list[tuple[int, str, str, str]]:
+def listar_docentes() -> list[tuple[int, str, str, str, bool]]:
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id_docente, nome, email, COALESCE(papel, 'prof') FROM docentes ORDER BY nome"
+                "SELECT id_docente, nome, email, COALESCE(papel, 'prof'), "
+                "COALESCE(solicitou_troca_pin, FALSE) FROM docentes ORDER BY email"
             )
-            return [(int(r[0]), str(r[1]), str(r[2]), _normalizar_papel(r[3])) for r in cur.fetchall()]
+            return [
+                (int(r[0]), str(r[1]), str(r[2]), _normalizar_papel(r[3]), bool(r[4]))
+                for r in cur.fetchall()
+            ]
     finally:
         conn.close()
 
 
-def buscar_docente_por_email(email: str) -> tuple[int, str, str, str, str] | None:
+def buscar_docente_por_email(email: str) -> tuple[int, str, str, str, str, bool] | None:
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id_docente, nome, email, pin_hash, COALESCE(papel, 'prof') FROM docentes WHERE email = %s",
+                "SELECT id_docente, nome, email, pin_hash, COALESCE(papel, 'prof'), "
+                "COALESCE(precisa_trocar_pin, FALSE) FROM docentes WHERE email = %s",
                 (email.strip().lower(),),
             )
             row = cur.fetchone()
             if row is None:
                 return None
-            return int(row[0]), str(row[1]), str(row[2]), str(row[3]), _normalizar_papel(row[4])
+            return (
+                int(row[0]), str(row[1]), str(row[2]), str(row[3]),
+                _normalizar_papel(row[4]), bool(row[5]),
+            )
     finally:
         conn.close()
 
 
-def buscar_docente_por_id(id_docente: int) -> tuple[int, str, str, str] | None:
+def buscar_docente_por_id(id_docente: int) -> tuple[int, str, str, str, bool, str] | None:
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id_docente, nome, email, COALESCE(papel, 'prof') FROM docentes WHERE id_docente = %s",
+                "SELECT id_docente, nome, email, COALESCE(papel, 'prof'), "
+                "COALESCE(precisa_trocar_pin, FALSE), pin_hash FROM docentes WHERE id_docente = %s",
                 (id_docente,),
             )
             row = cur.fetchone()
             if row is None:
                 return None
-            return int(row[0]), str(row[1]), str(row[2]), _normalizar_papel(row[3])
+            return (
+                int(row[0]), str(row[1]), str(row[2]), _normalizar_papel(row[3]),
+                bool(row[4]), str(row[5]),
+            )
     finally:
         conn.close()
 
 
-def cadastrar_docente(nome: str, email: str, pin: str, papel: str = PROF) -> None:
+def cadastrar_docente(
+    nome: str,
+    email: str,
+    pin: str,
+    papel: str = PROF,
+    precisa_trocar_pin: bool = True,
+) -> None:
     if papel not in PAPEIS_VALIDOS:
         raise ValueError("Papel inválido. Use 'adm' ou 'prof'.")
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO docentes (nome, email, pin_hash, papel) VALUES (%s, %s, %s, %s)",
-                (nome.strip(), email.strip().lower(), gerar_hash_pin(pin), papel),
+                "INSERT INTO docentes (nome, email, pin_hash, papel, precisa_trocar_pin) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (nome.strip(), email.strip().lower(), gerar_hash_pin(pin), papel, precisa_trocar_pin),
             )
         conn.commit()
     finally:
@@ -120,7 +139,8 @@ def atualizar_docente(
 
             if pin:
                 cur.execute(
-                    "UPDATE docentes SET nome = %s, email = %s, papel = %s, pin_hash = %s WHERE id_docente = %s",
+                    "UPDATE docentes SET nome = %s, email = %s, papel = %s, pin_hash = %s, "
+                    "precisa_trocar_pin = TRUE, solicitou_troca_pin = FALSE WHERE id_docente = %s",
                     (nome, email, papel, gerar_hash_pin(pin), id_alvo),
                 )
             else:
@@ -202,6 +222,46 @@ def migrar_schema() -> None:
     try:
         with conn.cursor() as cur:
             cur.execute("ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS link_midia VARCHAR")
+            cur.execute("ALTER TABLE perguntas ADD COLUMN IF NOT EXISTS peso INTEGER NOT NULL DEFAULT 1")
+            cur.execute(
+                "ALTER TABLE docentes ADD COLUMN IF NOT EXISTS "
+                "precisa_trocar_pin BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+            cur.execute(
+                "ALTER TABLE docentes ADD COLUMN IF NOT EXISTS "
+                "solicitou_troca_pin BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def trocar_pin_docente(id_docente: int, novo_pin: str) -> str | None:
+    """Grava o novo PIN e devolve o hash gravado (para reemitir o token), ou None se o docente sumiu."""
+    novo_hash = gerar_hash_pin(novo_pin)
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE docentes SET pin_hash = %s, precisa_trocar_pin = FALSE, "
+                "solicitou_troca_pin = FALSE WHERE id_docente = %s",
+                (novo_hash, id_docente),
+            )
+            trocou = cur.rowcount == 1
+        conn.commit()
+        return novo_hash if trocou else None
+    finally:
+        conn.close()
+
+
+def marcar_solicitacao_troca_pin(id_docente: int) -> None:
+    conn = _conectar()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE docentes SET solicitou_troca_pin = TRUE WHERE id_docente = %s",
+                (id_docente,),
+            )
         conn.commit()
     finally:
         conn.close()
@@ -282,18 +342,18 @@ def copiar_quiz(id_quiz_origem: int, id_docente_destino: int) -> int:
             id_quiz_novo = int(cur.fetchone()[0])
 
             cur.execute(
-                "SELECT id_pergunta, enunciado, ordem, link_midia FROM perguntas WHERE id_quiz = %s ORDER BY ordem",
+                "SELECT id_pergunta, enunciado, ordem, link_midia, peso FROM perguntas WHERE id_quiz = %s ORDER BY ordem",
                 (id_quiz_origem,),
             )
             perguntas = cur.fetchall()
             for pergunta in perguntas:
                 cur.execute(
                     """
-                    INSERT INTO perguntas (id_quiz, enunciado, ordem, link_midia)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO perguntas (id_quiz, enunciado, ordem, link_midia, peso)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING id_pergunta
                     """,
-                    (id_quiz_novo, pergunta[1], pergunta[2], pergunta[3]),
+                    (id_quiz_novo, pergunta[1], pergunta[2], pergunta[3], pergunta[4]),
                 )
                 id_pergunta_nova = int(cur.fetchone()[0])
 
@@ -539,6 +599,7 @@ def listar_perguntas_do_quiz(id_quiz: int) -> list[dict]:
                     p.enunciado,
                     p.ordem,
                     p.link_midia,
+                    p.peso,
                     a.id_alternativa,
                     a.texto,
                     a.correta
@@ -557,13 +618,14 @@ def listar_perguntas_do_quiz(id_quiz: int) -> list[dict]:
                     "enunciado": row[1],
                     "ordem": row[2],
                     "link_midia": row[3],
+                    "peso": int(row[4] or 1),
                     "alternativas": [],
                 })
-                if row[4] is not None:
+                if row[5] is not None:
                     pergunta["alternativas"].append({
-                        "id": int(row[4]),
-                        "texto": row[5],
-                        "correta": bool(row[6]),
+                        "id": int(row[5]),
+                        "texto": row[6],
+                        "correta": bool(row[7]),
                     })
         return list(perguntas.values())
     finally:
@@ -580,16 +642,17 @@ def _inserir_alternativas(cur, id_pergunta: int, alternativas: list[dict]) -> No
     )
 
 
-def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None) -> None:
+def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
     enunciado, alternativas_limpas, midia = normalizar_pergunta(
         enunciado, alternativas, link_midia
     )
+    peso = validar_peso(peso)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE perguntas SET enunciado = %s, link_midia = %s WHERE id_pergunta = %s AND id_quiz = %s",
-                (enunciado, midia, id_pergunta, id_quiz),
+                "UPDATE perguntas SET enunciado = %s, link_midia = %s, peso = %s WHERE id_pergunta = %s AND id_quiz = %s",
+                (enunciado, midia, peso, id_pergunta, id_quiz),
             )
             if cur.rowcount == 0:
                 raise ValueError("Pergunta não encontrada neste quiz.")
@@ -600,10 +663,11 @@ def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternati
         conn.close()
 
 
-def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None) -> None:
+def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
     enunciado, alternativas_limpas, midia = normalizar_pergunta(
         enunciado, alternativas, link_midia
     )
+    peso = validar_peso(peso)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
@@ -613,8 +677,8 @@ def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], l
             )
             proxima_ordem = cur.fetchone()[0]
             cur.execute(
-                "INSERT INTO perguntas (id_quiz, enunciado, ordem, link_midia) VALUES (%s, %s, %s, %s) RETURNING id_pergunta",
-                (id_quiz, enunciado, proxima_ordem, midia),
+                "INSERT INTO perguntas (id_quiz, enunciado, ordem, link_midia, peso) VALUES (%s, %s, %s, %s, %s) RETURNING id_pergunta",
+                (id_quiz, enunciado, proxima_ordem, midia, peso),
             )
             id_pergunta = int(cur.fetchone()[0])
             _inserir_alternativas(cur, id_pergunta, alternativas_limpas)

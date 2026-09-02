@@ -1,5 +1,7 @@
 
+import logging
 import math
+import re
 import threading
 import time
 from collections import defaultdict
@@ -7,10 +9,32 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
+
 _tentativas_login: dict[str, list[float]] = defaultdict(list)
 _lock_login = threading.Lock()
 _MAX_TENTATIVAS_LOGIN = 5
 _JANELA_LOGIN_SEGUNDOS = 60
+
+_tentativas_reset: dict[str, list[float]] = defaultdict(list)
+_lock_reset = threading.Lock()
+_MAX_TENTATIVAS_RESET = 3
+_JANELA_RESET_SEGUNDOS = 600
+
+
+def _checar_rate_limit_reset(email: str) -> None:
+    agora = time.monotonic()
+    with _lock_reset:
+        tentativas = _tentativas_reset[email]
+        tentativas[:] = [t for t in tentativas if agora - t < _JANELA_RESET_SEGUNDOS]
+        if len(tentativas) >= _MAX_TENTATIVAS_RESET:
+            segundos = max(1, math.ceil(_JANELA_RESET_SEGUNDOS - (agora - min(tentativas))))
+            raise HTTPException(
+                status_code=429,
+                detail=f"muitas tentativas, tente novamente em {segundos} segundos",
+                headers={"Retry-After": str(segundos)},
+            )
+        tentativas.append(agora)
 
 
 def _checar_rate_limit_login(email: str) -> None:
@@ -50,12 +74,18 @@ from backend.adaptadores.saida.postgres.repositorio import (
     copiar_quiz,
     excluir_docente,
     listar_docentes,
+    marcar_solicitacao_troca_pin,
     listar_perguntas_do_quiz,
     listar_quizzes,
     listar_quizzes_compartilhados,
+    trocar_pin_docente,
 )
-from backend.adaptadores.saida.email.relatorio import enviar_email_teste
+from backend.adaptadores.saida.email.relatorio import (
+    enviar_email_solicitacao_troca_pin,
+    enviar_email_teste,
+)
 from backend.infraestrutura.seguranca import (
+    fingerprint_pin,
     gerar_token_docente,
     verificar_pin,
     verificar_token_docente,
@@ -75,9 +105,10 @@ class LoginSaida(BaseModel):
     email: str
     papel: str
     token: str
+    precisa_trocar_pin: bool = False
 
 
-def docente_atual(authorization: str | None = Header(default=None)) -> dict:
+def _docente_do_token(authorization: str | None) -> dict:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="login necessario")
     token = authorization.split(" ", 1)[1].strip()
@@ -91,12 +122,30 @@ def docente_atual(authorization: str | None = Header(default=None)) -> dict:
     docente = buscar_docente_por_id(id_docente)
     if docente is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="sessao invalida")
+    if payload.get("pv") != fingerprint_pin(docente[5]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="sessao expirada")
     return {
         "id_docente": docente[0],
         "nome": docente[1],
         "email": docente[2],
         "papel": docente[3],
+        "precisa_trocar_pin": bool(docente[4]),
     }
+
+
+def docente_trocando_pin(authorization: str | None = Header(default=None)) -> dict:
+    """Autenticacao sem o portao de troca de PIN. Usada apenas em /auth/trocar-pin."""
+    return _docente_do_token(authorization)
+
+
+def docente_atual(authorization: str | None = Header(default=None)) -> dict:
+    atual = _docente_do_token(authorization)
+    if atual["precisa_trocar_pin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="troque o PIN provisorio antes de continuar",
+        )
+    return atual
 
 
 def admin_atual(atual: dict = Depends(docente_atual)) -> dict:
@@ -131,8 +180,61 @@ def login(corpo: LoginEntrada):
         _registrar_falha_login(email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="email ou pin incorretos")
     _limpar_falhas_login(email)
-    token = gerar_token_docente(docente[0], docente[2], docente[4])
-    return LoginSaida(id_docente=docente[0], nome=docente[1], email=docente[2], papel=docente[4], token=token)
+    token = gerar_token_docente(docente[0], docente[2], docente[4], docente[3])
+    return LoginSaida(
+        id_docente=docente[0],
+        nome=docente[1],
+        email=docente[2],
+        papel=docente[4],
+        token=token,
+        precisa_trocar_pin=bool(docente[5]),
+    )
+
+
+class EsqueciSenhaEntrada(BaseModel):
+    email: str
+
+
+@router.post("/auth/esqueci-senha", tags=["auth"])
+def esqueci_senha(corpo: EsqueciSenhaEntrada):
+    """Nao envia link para o docente. Apenas avisa os administradores da solicitacao."""
+    email = corpo.email.strip().lower()
+    _checar_rate_limit_reset(email)
+    docente = buscar_docente_por_email(email)
+    if docente is not None:
+        marcar_solicitacao_troca_pin(docente[0])
+        admins = [linha[2] for linha in listar_docentes() if linha[3] == ADM]
+        if admins:
+            try:
+                enviar_email_solicitacao_troca_pin(admins, docente[1], docente[2])
+            except Exception:
+                logger.exception("falha ao notificar administradores sobre solicitacao de troca de pin")
+    return {"ok": True}
+
+
+class TrocarPinEntrada(BaseModel):
+    pin_atual: str
+    novo_pin: str
+
+
+@router.post("/auth/trocar-pin", tags=["auth"])
+def trocar_pin(corpo: TrocarPinEntrada, atual: dict = Depends(docente_trocando_pin)):
+    email = str(atual["email"]).strip().lower()
+    _checar_rate_limit_login(email)
+    docente = buscar_docente_por_email(email)
+    if docente is None or not verificar_pin(corpo.pin_atual, docente[3]):
+        _registrar_falha_login(email)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="PIN atual incorreto")
+    if not re.fullmatch(r"\d{4}", corpo.novo_pin):
+        raise HTTPException(status_code=400, detail="PIN deve ter exatamente 4 digitos")
+    if corpo.novo_pin == corpo.pin_atual:
+        raise HTTPException(status_code=400, detail="o novo PIN precisa ser diferente do atual")
+    novo_hash = trocar_pin_docente(int(atual["id_docente"]), corpo.novo_pin)
+    if novo_hash is None:
+        raise HTTPException(status_code=404, detail="docente nao encontrado")
+    _limpar_falhas_login(email)
+    token = gerar_token_docente(int(atual["id_docente"]), email, str(atual["papel"]), novo_hash)
+    return {"ok": True, "token": token}
 
 
 class DocenteSaida(BaseModel):
@@ -140,6 +242,7 @@ class DocenteSaida(BaseModel):
     nome: str
     email: str
     papel: str
+    solicitou_troca_pin: bool = False
 
 
 class CadastrarDocenteEntrada(BaseModel):
@@ -158,7 +261,10 @@ class AtualizarDocenteEntrada(BaseModel):
 
 @router.get("/docentes", response_model=list[DocenteSaida], tags=["docentes"])
 def listar(atual: dict = Depends(admin_atual)):
-    return [DocenteSaida(id_docente=r[0], nome=r[1], email=r[2], papel=r[3]) for r in listar_docentes()]
+    return [
+        DocenteSaida(id_docente=r[0], nome=r[1], email=r[2], papel=r[3], solicitou_troca_pin=r[4])
+        for r in listar_docentes()
+    ]
 
 
 @router.post("/docentes", status_code=status.HTTP_201_CREATED, tags=["docentes"])
@@ -227,6 +333,7 @@ class PerguntaEntrada(BaseModel):
     enunciado: str
     alternativas: list[AlternativaEntrada]
     link_midia: str | None = None
+    peso: int = 1
 
 
 class CopiarQuizEntrada(BaseModel):
@@ -302,6 +409,7 @@ def atualizar_pergunta_rota(id_quiz: int, id_pergunta: int, corpo: PerguntaEntra
             corpo.enunciado,
             [a.model_dump() if hasattr(a, "model_dump") else a.dict() for a in corpo.alternativas],
             corpo.link_midia,
+            corpo.peso,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -325,6 +433,7 @@ def cadastrar_pergunta_rota(id_quiz: int, corpo: PerguntaEntrada, atual: dict = 
             corpo.enunciado,
             [a.model_dump() if hasattr(a, "model_dump") else a.dict() for a in corpo.alternativas],
             corpo.link_midia,
+            corpo.peso,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
