@@ -47,14 +47,22 @@ _SEM_JANELA = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
 
 
 def _matar_flet_clientes() -> None:
-    if os.name != "nt":
+    if os.name == "nt":
+        try:
+            subprocess.call(
+                ["taskkill", "/F", "/IM", "flet.exe"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_SEM_JANELA,
+            )
+        except Exception:
+            pass
         return
     try:
         subprocess.call(
-            ["taskkill", "/F", "/IM", "flet.exe"],
+            ["pkill", "-x", "flet"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=_SEM_JANELA,
         )
     except Exception:
         pass
@@ -84,6 +92,7 @@ def _matar(proc) -> None:
 
 def _matar_porta(porta: int) -> None:
     if os.name != "nt":
+        _matar_porta_posix(porta)
         return
     try:
         saida = subprocess.check_output(
@@ -106,6 +115,39 @@ def _matar_porta(porta: int) -> None:
                 )
             except Exception:
                 pass
+
+
+def _matar_porta_posix(porta: int) -> None:
+    import re
+    import signal
+
+    pids: set[str] = set()
+    try:
+        saida = subprocess.check_output(
+            ["ss", "-tlnpH", f"sport = :{porta}"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        pids = set(re.findall(r"pid=(\d+)", saida))
+    except Exception:
+        pids = set()
+
+    if not pids:
+        try:
+            subprocess.call(
+                ["fuser", "-k", f"{porta}/tcp"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+        return
+
+    for pid in pids:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, ValueError):
+            pass
 
 
 _GITHUB_REPO = "JackMatiazzi/Faccupoint"

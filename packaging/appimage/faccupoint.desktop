@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=FaccuPoint
+Comment=Quizzes ao vivo em sala de aula
+Exec=FaccuPoint
+Icon=faccupoint
+Categories=Education;
+Terminal=false

@@ -1,27 +1,50 @@
-name: Build Linux
+name: Publicar versao Linux
 
 on:
   push:
-    branches:
-      - "**"
-  workflow_dispatch:
+    tags:
+      - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag criada pelo Release Please
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: build-linux-${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
+  group: release-linux-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Gerar executavel Linux x86_64
+  release:
+    name: Gerar e publicar release Linux
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Baixar o codigo
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Validar tag e versao
+        id: version
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('.release-please-manifest.json'))['.'])")
+          tag="${{ inputs.tag || github.ref_name }}"
+
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "Versao invalida no manifesto: $version" >&2
+            exit 1
+          fi
+          if [ "$tag" != "v$version" ]; then
+            echo "A tag $tag nao corresponde ao manifesto ($version). Use a tag v$version." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -93,15 +116,22 @@ jobs:
       - name: Validar AppImage
         run: ./FaccuPoint-x86_64.AppImage --appimage-extract-and-run --smoke-test-package
 
-      - name: Publicar artefato
-        uses: actions/upload-artifact@v4
-        with:
-          name: FaccuPoint-Linux-x86_64-${{ github.run_number }}
-          path: |
+      - name: Criar ou atualizar GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          arquivos=(
             FaccuPoint-Linux-x86_64.tar.gz
             FaccuPoint-Linux-x86_64.tar.gz.sha256
             FaccuPoint-x86_64.AppImage
             FaccuPoint-x86_64.AppImage.sha256
-          if-no-files-found: error
-          retention-days: 14
-          compression-level: 0
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${arquivos[@]}" --clobber
+          else
+            gh release create "$tag" "${arquivos[@]}" \
+              --verify-tag \
+              --title "FaccuPoint ${{ steps.version.outputs.version }}" \
+              --generate-notes
+          fi
