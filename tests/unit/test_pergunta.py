@@ -1,9 +1,17 @@
 import unittest
 
-from backend.dominio.pergunta import normalizar_pergunta, validar_link_midia
+from backend.dominio.pergunta import normalizar_pergunta, validar_link_midia, validar_peso
 
 
 class QuestionRulesTest(unittest.TestCase):
+    def test_valida_peso_da_pergunta(self):
+        self.assertEqual(validar_peso(1), 1)
+        self.assertEqual(validar_peso("25"), 25)
+        for peso in (0, 101, "abc", None):
+            with self.subTest(peso=peso):
+                with self.assertRaises(ValueError):
+                    validar_peso(peso)
+
     def test_accepts_more_than_one_correct_alternative(self):
         texto, alternativas, midia = normalizar_pergunta(
             "  Selecione uma resposta aceita  ",

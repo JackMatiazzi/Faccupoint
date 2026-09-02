@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import flet as ft
 
 from compartilhado.ciclo_pagina import configurar_ciclo_pagina
+from compartilhado.tema import configurar_tema
 from compartilhado.navegacao import query_valor
 from compartilhado.sistema_design.tokens import BG_PAGE
 from aluno.telas.entrar import tela_entrar
@@ -18,17 +19,21 @@ from aluno.telas.placar import tela_placar
 
 def main(page: ft.Page) -> None:
     page.title = "FaccuPoint"
-    page.theme_mode = ft.ThemeMode.DARK
+    configurar_tema(page)
     page.bgcolor = BG_PAGE
     page.padding = 0
 
-    rota_inicial = page.route or "/"
+    rota_recebida = page.route or "/"
+    # Rotas internas dependem do WebSocket. Ao recarregar/reabrir no celular,
+    # passamos pelo lobby para restaurar a sessao salva no navegador.
+    rota_inicial = "/lobby" if rota_recebida in ("/questao", "/placar") else rota_recebida
 
     page.sessao_codigo = query_valor(page, "codigo")
     page.sessao_apelido = ""
     page.sessao_ip = "127.0.0.1"
     page.sessao_porta = "8000"
     page.sessao_api_secure = False
+    page.sessao_token_reconexao = ""
     page._ws_queue = asyncio.Queue()
     page._rota_esperada = rota_inicial
 

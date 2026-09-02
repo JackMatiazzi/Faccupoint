@@ -6,7 +6,7 @@ import flet as ft
 from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING, CARD_RADIUS,
-    FONT_CAPTION, FONT_HEADING, SPACE_MD, TEXT_PRIMARY, TEXT_SECONDARY,
+    FONT_CAPTION, FONT_HEADING, SPACE_MD, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT,
 )
 
 
@@ -21,6 +21,10 @@ def tela_placar(page: ft.Page) -> ft.View:
         page._placar_final = []
         page._mensagem_questao = {}
         page._forcar_entrada_manual = True
+        try:
+            page.client_storage.remove("faccupoint.sessao_aluno")
+        except Exception:
+            pass
         ir_para(page, "/")
 
     linhas = []
@@ -76,7 +80,7 @@ def tela_placar(page: ft.Page) -> ft.View:
                                 ft.Container(height=8),
                                 ft.ElevatedButton(
                                     text="Entrar em outra sala",
-                                    bgcolor=ACCENT, color=TEXT_PRIMARY, height=BTN_H,
+                                    bgcolor=ACCENT, color=TEXT_ON_ACCENT, height=BTN_H,
                                     style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
                                     on_click=entrar_em_outra_sala,
                                 ),

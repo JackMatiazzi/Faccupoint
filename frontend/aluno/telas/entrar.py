@@ -3,12 +3,13 @@ import re
 from urllib.parse import urlparse
 
 import flet as ft
+from compartilhado.tema import botao_tema
 
 from compartilhado.navegacao import ir_para, query_valor
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
     CARD_PADDING, CARD_RADIUS, FONT_CAPTION, FONT_DISPLAY,
-    SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
+    SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT,
 )
 
 
@@ -78,14 +79,20 @@ def tela_entrar(page: ft.Page) -> ft.View:
             spacing=SPACE_MD,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             controls=[
-                ft.Text("FaccuPoint", size=FONT_DISPLAY, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text("FaccuPoint", size=FONT_DISPLAY, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+                        botao_tema(page),
+                    ],
+                ),
                 ft.Text("Entre com o codigo da aula", size=FONT_CAPTION, color=TEXT_SECONDARY),
                 ft.Divider(height=8, color="transparent"),
                 *([exibir_codigo] if exibir_codigo else [campo_codigo]),
                 campo_apelido,
                 erro,
                 ft.ElevatedButton(
-                    text="Entrar", bgcolor=ACCENT, color=TEXT_PRIMARY,
+                    text="Entrar", bgcolor=ACCENT, color=TEXT_ON_ACCENT,
                     height=BTN_H,
                     style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
                     on_click=entrar,

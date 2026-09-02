@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import re
+import secrets
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -35,6 +37,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 TEMPO_QUESTAO = int(os.getenv("TEMPO_QUESTAO_SEGUNDOS", "30"))
+RETENCAO_SESSAO_SEGUNDOS = int(os.getenv("RETENCAO_SESSAO_SEGUNDOS", "600"))
 abrir_sessao = AbrirSessao(
     repositorio_sessoes,
     armazenamento_sessoes_ativas,
@@ -51,16 +54,16 @@ class CriarSessaoEntrada(BaseModel):
 async def _broadcast_alunos(sessao, mensagem: dict) -> None:
     mortos = []
     for apelido, p in sessao.participantes.items():
+        if p.ws is None:
+            continue
         try:
             await p.ws.send_json(mensagem)
         except WebSocketDisconnect:
             logger.info("aluno %s desconectou", apelido)
-            mortos.append(apelido)
+            p.ws = None
         except Exception:
             logger.exception("falha ao enviar mensagem para aluno %s", apelido)
-            mortos.append(apelido)
-    for a in mortos:
-        sessao.participantes.pop(a, None)
+            p.ws = None
 
 
 async def _enviar_professor(sessao, mensagem: dict) -> None:
@@ -95,6 +98,9 @@ async def _rodar_questao(codigo: str) -> None:
         p.resposta_atual = None
 
     tempo = sessao.tempo_questao
+    sessao.fase = "pergunta"
+    sessao.questao_iniciada_em = time.monotonic()
+    sessao.ultimo_resultado = None
     msg_questao = {
         "tipo": "questao",
         "numero": sessao.questao_atual + 1,
@@ -103,6 +109,7 @@ async def _rodar_questao(codigo: str) -> None:
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": tempo,
         "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
+        "peso": int(pergunta.get("peso", 1)),
     }
     await _broadcast_alunos(sessao, msg_questao)
     await _enviar_professor(sessao, {**msg_questao, "tipo": "questao_professor"})
@@ -134,7 +141,7 @@ async def _revelar_resultado(codigo: str) -> None:
     for p in sessao.participantes.values():
         acertou = p.resposta_atual in indices_corretos
         if acertou:
-            p.pontos += 1
+            p.pontos += int(pergunta.get("peso", 1))
         if p.resposta_atual is None and p.id_participante is not None:
             await asyncio.to_thread(
                 registrar_tentativa,
@@ -153,8 +160,12 @@ async def _revelar_resultado(codigo: str) -> None:
         "contagem": contagem,
         "placar": placar,
     }
+    sessao.fase = "resultado"
+    sessao.ultimo_resultado = resultado
     mortos = []
     for p in sessao.participantes.values():
+        if p.ws is None:
+            continue
         respondeu = p.resposta_atual is not None
         payload_aluno = {
             **resultado,
@@ -169,12 +180,10 @@ async def _revelar_resultado(codigo: str) -> None:
             await p.ws.send_json(payload_aluno)
         except WebSocketDisconnect:
             logger.info("aluno %s desconectou antes de receber o resultado", p.apelido)
-            mortos.append(p.apelido)
+            p.ws = None
         except Exception:
             logger.exception("falha ao enviar resultado para aluno %s", p.apelido)
-            mortos.append(p.apelido)
-    for apelido in mortos:
-        sessao.participantes.pop(apelido, None)
+            p.ws = None
     await _enviar_professor(sessao, {
         **resultado,
         "tipo": "resultado_professor",
@@ -200,6 +209,7 @@ async def _encerrar(codigo: str) -> None:
     if not sessao:
         return
     sessao.status = "encerrada"
+    sessao.fase = "fim"
     logger.info("sala %s encerrada", codigo)
     placar = [{"apelido": p.apelido, "pontos": p.pontos} for p in sorted(sessao.participantes.values(), key=lambda x: -x.pontos)]
     await _broadcast_alunos(sessao, {"tipo": "fim", "placar": placar})
@@ -219,7 +229,49 @@ async def _encerrar(codigo: str) -> None:
         await asyncio.to_thread(enviar_relatorio_sessao, sessao.id_sessao)
     except Exception:
         logger.exception("falha inesperada ao finalizar envio de email da sala %s", codigo)
-    armazenamento_sessoes_ativas.remover(codigo)
+    asyncio.create_task(_remover_sessao_depois(codigo, sessao))
+
+
+async def _remover_sessao_depois(codigo: str, sessao_encerrada) -> None:
+    await asyncio.sleep(RETENCAO_SESSAO_SEGUNDOS)
+    if obter_sessao(codigo) is sessao_encerrada:
+        armazenamento_sessoes_ativas.remover(codigo)
+
+
+def _mensagem_questao_atual(sessao, participante: Participante) -> dict | None:
+    pergunta = sessao.pergunta_atual()
+    if not pergunta:
+        return None
+    decorrido = max(0, int(time.monotonic() - (sessao.questao_iniciada_em or time.monotonic())))
+    restante = max(0, sessao.tempo_questao - decorrido)
+    return {
+        "tipo": "questao",
+        "numero": sessao.questao_atual + 1,
+        "total": len(sessao.perguntas),
+        "enunciado": pergunta["enunciado"],
+        "alternativas": [a["texto"] for a in pergunta["alternativas"]],
+        "tempo": restante,
+        "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
+        "peso": int(pergunta.get("peso", 1)),
+        "resposta_atual": participante.resposta_atual,
+    }
+
+
+async def _restaurar_estado_aluno(ws: WebSocket, sessao, participante: Participante) -> None:
+    if sessao.status == "encerrada":
+        placar = [{"apelido": p.apelido, "pontos": p.pontos} for p in sorted(sessao.participantes.values(), key=lambda x: -x.pontos)]
+        await ws.send_json({"tipo": "fim", "placar": placar})
+    elif sessao.fase == "resultado" and sessao.ultimo_resultado:
+        mensagem = _mensagem_questao_atual(sessao, participante)
+        if mensagem:
+            await ws.send_json(mensagem)
+        await ws.send_json({**sessao.ultimo_resultado, "tipo": "resultado", "sua_resposta": participante.resposta_atual, "acertou": participante.resposta_atual in sessao.ultimo_resultado.get("indices_corretos", []), "pontos": participante.pontos})
+    elif sessao.status == "rodando":
+        mensagem = _mensagem_questao_atual(sessao, participante)
+        if mensagem:
+            await ws.send_json(mensagem)
+    else:
+        await ws.send_json({"tipo": "lobby", "participantes": list(sessao.participantes)})
 
 
 @router.post("/sessoes", tags=["sessao"])
@@ -329,14 +381,9 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     if not sessao:
         await ws.close(code=4004)
         return
-    if sessao.status != "lobby":
-        await ws.close(code=4008)
-        return
-    if len(sessao.participantes) >= _MAX_PARTICIPANTES:
-        await ws.close(code=4008)
-        return
     await ws.accept()
     apelido = None
+    participante = None
     try:
         try:
             raw = await asyncio.wait_for(ws.receive_text(), timeout=15.0)
@@ -346,14 +393,32 @@ async def ws_aluno(ws: WebSocket, codigo: str):
             await ws.close()
             return
         apelido = re.sub(r"[^\w\s\-]", "", dados.get("apelido", ""), flags=re.UNICODE).strip()[:20]
-        if not apelido or apelido in sessao.participantes:
-            await ws.send_json({"tipo": "erro", "mensagem": "apelido invalido ou ja em uso"})
-            await ws.close()
-            return
+        token_recebido = str(dados.get("token_reconexao", ""))
+        existente = sessao.participantes.get(apelido)
+        if existente and token_recebido and secrets.compare_digest(existente.token_reconexao, token_recebido):
+            participante = existente
+            participante.ws = ws
+            logger.info("sala %s: %s reconectou", codigo, apelido)
+        else:
+            if sessao.status != "lobby":
+                await ws.send_json({"tipo": "erro", "mensagem": "quiz em andamento ou ja encerrado"})
+                await ws.close()
+                return
+            if not apelido or existente:
+                await ws.send_json({"tipo": "erro", "mensagem": "apelido invalido ou ja em uso"})
+                await ws.close()
+                return
+            if len(sessao.participantes) >= _MAX_PARTICIPANTES:
+                await ws.send_json({"tipo": "erro", "mensagem": "sala lotada"})
+                await ws.close()
+                return
+            id_participante = await asyncio.to_thread(registrar_participante_sessao, sessao.id_sessao, apelido)
+            participante = Participante(apelido=apelido, ws=ws, id_participante=id_participante, token_reconexao=secrets.token_urlsafe(32))
+            sessao.participantes[apelido] = participante
+            logger.info("sala %s: %s entrou", codigo, apelido)
 
-        id_participante = await asyncio.to_thread(registrar_participante_sessao, sessao.id_sessao, apelido)
-        sessao.participantes[apelido] = Participante(apelido=apelido, ws=ws, id_participante=id_participante)
-        logger.info("sala %s: %s entrou", codigo, apelido)
+        await ws.send_json({"tipo": "identificado", "token_reconexao": participante.token_reconexao})
+        await _restaurar_estado_aluno(ws, sessao, participante)
         lista = list(sessao.participantes.keys())
         await _broadcast_alunos(sessao, {"tipo": "lobby", "participantes": lista})
         await _enviar_professor(sessao, {"tipo": "lobby", "participantes": lista})
@@ -394,8 +459,8 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     except WebSocketDisconnect:
         pass
     finally:
-        if apelido and apelido in sessao.participantes:
-            sessao.participantes.pop(apelido)
+        if participante and participante.ws is ws:
+            participante.ws = None
             lista = list(sessao.participantes.keys())
             await _broadcast_alunos(sessao, {"tipo": "lobby", "participantes": lista})
             await _enviar_professor(sessao, {"tipo": "lobby", "participantes": lista})
