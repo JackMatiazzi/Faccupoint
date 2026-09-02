@@ -13,7 +13,7 @@ import websockets
 
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.sistema_design.tokens import (
-    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
+    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
     FONT_CODE, SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
     TEXT_SUCCESS,
@@ -139,12 +139,12 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
 
     btn_criar = ft.ElevatedButton(
         text="Gerar código",
-        bgcolor=ACCENT, color=TEXT_PRIMARY, width=CARD_W, height=BTN_H,
+        bgcolor=ACCENT, color=ft.Colors.ON_PRIMARY, width=CARD_W, height=BTN_H,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
     )
     btn_iniciar = ft.ElevatedButton(
         text="Começar quiz",
-        bgcolor=TEXT_SUCCESS, color=BG_PAGE, width=CARD_W, height=BTN_H,
+        bgcolor=TEXT_SUCCESS, color=BTN_GREEN_TEXT, width=CARD_W, height=BTN_H,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
         visible=False,
     )
@@ -255,7 +255,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                     elif tipo == "questao_professor":
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
-                        questao_text.value = f"Questão {numero} de {total}"
+                        peso = int(dados.get("peso", 1))
+                        questao_text.value = f"Questão {numero} de {total} · {peso} ponto{'s' if peso != 1 else ''}"
                         questao_text.visible = True
                         tempo_text.value = "0s decorridos"
                         tempo_text.visible = True

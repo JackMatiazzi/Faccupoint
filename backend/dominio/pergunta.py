@@ -26,6 +26,16 @@ def validar_link_midia(link: str | None) -> str | None:
     return url
 
 
+def validar_peso(peso: int) -> int:
+    try:
+        valor = int(peso)
+    except (TypeError, ValueError):
+        raise ValueError("Peso deve ser um numero inteiro entre 1 e 100.")
+    if not 1 <= valor <= 100:
+        raise ValueError("Peso deve estar entre 1 e 100.")
+    return valor
+
+
 def normalizar_pergunta(
     enunciado: str,
     alternativas: list[dict],

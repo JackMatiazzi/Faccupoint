@@ -39,7 +39,7 @@ jobs:
     name: Publicar pacote Linux
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    uses: ./.github/workflows/build-linux.yml
+    uses: ./.github/workflows/release-linux.yml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
     secrets: inherit

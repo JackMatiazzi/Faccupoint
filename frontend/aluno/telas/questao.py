@@ -7,10 +7,10 @@ import flet as ft
 from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.sistema_design.tokens import (
-    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_QUESTAO_H, BTN_RADIUS,
+    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_GREEN_TEXT, BTN_QUESTAO_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CORES_ALTERNATIVAS,
     FONT_CAPTION, FONT_SUBHEADING, SPACE_MD, TEXT_DANGER,
-    TEXT_PRIMARY, TEXT_SECONDARY,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT,
 )
 
 
@@ -23,6 +23,7 @@ def tela_questao(page: ft.Page) -> ft.View:
     alternativas = dados.get("alternativas", [])
     numero = dados.get("numero", 1)
     total = dados.get("total", 1)
+    peso = int(dados.get("peso", 1))
     tempo_total = dados.get("tempo", 20)
     link_midia = dados.get("link_midia")
 
@@ -44,17 +45,46 @@ def tela_questao(page: ft.Page) -> ft.View:
             on_click=lambda _, u=url: page.launch_url(u, web_window_name="_blank"),
         )
 
-    resposta_enviada = [None]
+    resposta_enviada = [dados.get("resposta_atual")]
     progresso = ft.ProgressBar(value=1.0, bgcolor=BG_INPUT, color=ACCENT)
     texto_tempo = ft.Text(str(tempo_total), size=FONT_SUBHEADING, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD)
     feedback    = ft.Text("", size=FONT_SUBHEADING, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     botoes = []
 
+    def _sair_para_inicio(e) -> None:
+        page.sessao_codigo = ""
+        page.sessao_apelido = ""
+        page._ws_aluno = None
+        page._placar_final = []
+        page._mensagem_questao = {}
+        page._forcar_entrada_manual = True
+        try:
+            page.client_storage.remove("faccupoint.sessao_aluno")
+        except Exception:
+            pass
+        ir_para(page, "/")
+
+    btn_voltar_inicio = ft.ElevatedButton(
+        text="Voltar para o início",
+        bgcolor=ACCENT, color=TEXT_ON_ACCENT,
+        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
+        visible=False,
+        on_click=_sair_para_inicio,
+    )
+
+    def _mostrar_conexao_perdida() -> None:
+        feedback.value = "Conexão perdida ou a sessão foi encerrada"
+        feedback.color = TEXT_DANGER
+        btn_voltar_inicio.visible = True
+        for b in botoes:
+            b.disabled = True
+        page.update()
+
     def fazer_botao(indice: int, texto: str) -> ft.ElevatedButton:
         return ft.ElevatedButton(
             text=texto,
             bgcolor=CORES_ALTERNATIVAS[indice % len(CORES_ALTERNATIVAS)],
-            color=TEXT_PRIMARY,
+            color=BTN_GREEN_TEXT,
             height=BTN_QUESTAO_H,
             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
             on_click=lambda e, i=indice: responder(i),
@@ -84,9 +114,7 @@ def tela_questao(page: ft.Page) -> ft.View:
     async def aguardar_resultado() -> None:
         queue = getattr(page, "_ws_queue", None)
         if not queue:
-            feedback.value = "Conexão perdida"
-            feedback.color = TEXT_DANGER
-            page.update()
+            _mostrar_conexao_perdida()
             return
         try:
             while True:
@@ -94,9 +122,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                 tipo = dados_ws.get("tipo")
 
                 if tipo == "_erro_conexao":
-                    feedback.value = "Conexão perdida"
-                    feedback.color = TEXT_DANGER
-                    page.update()
+                    _mostrar_conexao_perdida()
                     return
 
                 elif tipo == "resultado":
@@ -135,16 +161,14 @@ def tela_questao(page: ft.Page) -> ft.View:
                     return
 
         except Exception:
-            feedback.value = "Conexão perdida"
-            feedback.color = TEXT_DANGER
-            page.update()
+            _mostrar_conexao_perdida()
 
     async def countdown() -> None:
         for t in range(tempo_total, -1, -1):
             if getattr(page, "_questao_token", None) != questao_token:
                 return
 
-            progresso.value = t / tempo_total
+            progresso.value = t / max(tempo_total, 1)
             texto_tempo.value = str(t) if t > 0 else "0"
             page.update()
             if t == 0:
@@ -160,11 +184,16 @@ def tela_questao(page: ft.Page) -> ft.View:
     for i, alt in enumerate(alternativas):
         botoes.append(fazer_botao(i, alt))
 
+    if resposta_enviada[0] is not None:
+        for botao in botoes:
+            botao.disabled = True
+        feedback.value = "Resposta enviada. Aguardando o resultado..."
+        feedback.color = TEXT_SECONDARY
+
     media_ctrl = _render_media(link_midia)
 
-    if resposta_enviada[0] is None:
-        page.run_task(countdown)
-        page.run_task(aguardar_resultado)
+    page.run_task(countdown)
+    page.run_task(aguardar_resultado)
 
     return ft.View(
         route="/questao",
@@ -178,7 +207,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            ft.Text(f"Questão {numero}/{total}", size=FONT_CAPTION, color=TEXT_SECONDARY),
+                            ft.Text(f"Questão {numero}/{total} · {peso} ponto{'s' if peso != 1 else ''}", size=FONT_CAPTION, color=TEXT_SECONDARY),
                             ft.Row(controls=[texto_tempo, ft.Text("s", color=TEXT_SECONDARY, size=FONT_CAPTION)], spacing=2),
                         ],
                     ),
@@ -201,6 +230,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                                 *botoes,
                                 ft.Container(height=8),
                                 feedback,
+                                btn_voltar_inicio,
                             ],
                         ),
                     ),

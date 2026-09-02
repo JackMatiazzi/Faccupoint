@@ -7,7 +7,7 @@ from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H,
     FONT_BODY, FONT_CAPTION, FONT_DISPLAY, FONT_TITLE,
     G4, G8, G12, G16, G32, G48,
-    TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_SUCCESS,
+    TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_SUCCESS, TEXT_ON_ACCENT,
 )
 from compartilhado.sistema_design.componentes.botoes import btn_primary, btn_outline, status_badge, counter_badge
 from compartilhado.sistema_design.componentes.campos import campo
@@ -25,6 +25,7 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
     busca = campo("Buscar por nome ou email", prefix_icon=ft.Icons.SEARCH, height=BTN_H)
     tabela = ft.Column(spacing=0, scroll=ft.ScrollMode.AUTO)
     contador = ft.Text("0 ativos", color=TEXT_PRIMARY, size=FONT_CAPTION)
+    aviso_pendentes = ft.Text("", color=ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.W_600, visible=False)
     docentes = []
 
     def _gerar_pin() -> str:
@@ -213,6 +214,90 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
             erro.value = ex.detail
             page.update()
 
+    def abrir_modal_resetar_pin(docente: Docente) -> None:
+        erro.value = ""
+        sucesso.value = ""
+
+        pin_reset = campo(
+            "PIN provisório", value=_gerar_pin(), password=True,
+            can_reveal_password=True, max_length=4,
+        )
+        msg_reset = ft.Text("", size=FONT_CAPTION, color=TEXT_DANGER)
+        pin_visivel = ft.Text("", size=FONT_TITLE, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD)
+
+        def fechar(ev=None) -> None:
+            dlg.open = False
+            page.update()
+
+        def gerar(ev=None) -> None:
+            pin_reset.value = _gerar_pin()
+            page.update()
+
+        def confirmar(ev=None) -> None:
+            msg_reset.value = ""
+            pin = (pin_reset.value or "").strip()
+            if len(pin) != 4 or not pin.isdigit():
+                msg_reset.value = "PIN deve ter 4 dígitos."
+                page.update()
+                return
+            try:
+                api.atualizar_docente(docente.id_docente, docente.nome, docente.email, docente.papel, pin)
+            except ApiError as ex:
+                msg_reset.value = ex.detail
+                page.update()
+                return
+            pin_visivel.value = f"PIN provisório: {pin}"
+            corpo.controls = [
+                pin_visivel,
+                ft.Text(
+                    "Repasse esse PIN pessoalmente ao professor. Ele define o PIN definitivo no primeiro acesso.",
+                    color=TEXT_SECONDARY, size=FONT_CAPTION,
+                ),
+            ]
+            dlg.actions = [ft.TextButton("Fechar", style=ft.ButtonStyle(color=TEXT_SECONDARY), on_click=fechar)]
+            sucesso.value = f"PIN de {docente.nome} resetado."
+            carregar_docentes()
+            page.update()
+
+        corpo = ft.Column(
+            tight=True,
+            spacing=G16,
+            controls=[
+                ft.Text(
+                    "Gera um PIN provisório. O professor é obrigado a trocá-lo no próximo login.",
+                    color=TEXT_SECONDARY, size=FONT_CAPTION,
+                ),
+                ft.Row(
+                    spacing=G8,
+                    controls=[
+                        ft.Container(expand=True, content=pin_reset),
+                        btn_outline("Gerar nova", on_click=gerar, icon=ft.Icons.REFRESH),
+                    ],
+                ),
+                msg_reset,
+            ],
+        )
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            bgcolor=BG_CARD,
+            title=ft.Row(
+                controls=[
+                    ft.Text(f"Resetar PIN de {docente.nome}", color=TEXT_PRIMARY, size=FONT_TITLE, weight=ft.FontWeight.BOLD),
+                    ft.Container(expand=True),
+                    ft.IconButton(icon=ft.Icons.CLOSE, icon_color=TEXT_SECONDARY, on_click=fechar),
+                ],
+            ),
+            content=ft.Container(width=G32 * 16, content=corpo),
+            actions=[
+                ft.TextButton("Cancelar", style=ft.ButtonStyle(color=TEXT_SECONDARY), on_click=fechar),
+                btn_primary("Confirmar reset", on_click=confirmar, icon=ft.Icons.LOCK_RESET),
+            ],
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
+
     def carregar_docentes() -> None:
         try:
             docentes[:] = api.listar_docentes()
@@ -228,8 +313,14 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
             if termo and termo not in d.nome.lower() and termo not in d.email.lower():
                 continue
             rows.append(d)
+        rows.sort(key=lambda d: d.email.lower())
 
+        pendentes = len([d for d in docentes if getattr(d, "solicitou_troca_pin", False)])
         contador.value = f"{len([d for d in docentes if d.papel != 'adm'])} professores"
+        aviso_pendentes.value = (
+            f"{pendentes} aguardando reset de PIN" if pendentes else ""
+        )
+        aviso_pendentes.visible = pendentes > 0
         tabela.controls.clear()
         tabela.controls.append(
             ft.Container(
@@ -240,40 +331,56 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                         ft.Text("Nome", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
                         ft.Text("Email", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
                         ft.Text("Papel", color=TEXT_SECONDARY, size=FONT_CAPTION, expand=1),
-                        ft.Text("Ações", color=TEXT_SECONDARY, size=FONT_CAPTION, width=G48 * 2),
+                        ft.Text("Ações", color=TEXT_SECONDARY, size=FONT_CAPTION, width=G48 * 3),
                     ],
                 ),
             )
         )
         for d in rows:
+            pediu = getattr(d, "solicitou_troca_pin", False)
+            nome_controls = [
+                ft.Container(
+                    width=_AVT_SZ,
+                    height=_AVT_SZ,
+                    alignment=ft.alignment.center,
+                    bgcolor=ACCENT,
+                    border_radius=_AVT_SZ // 2,
+                    content=ft.Text(iniciais(d.nome), color=TEXT_ON_ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
+                ),
+                ft.Text(d.nome, color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.W_600),
+            ]
+            if pediu:
+                nome_controls.append(
+                    ft.Container(
+                        padding=ft.padding.symmetric(horizontal=G8, vertical=G4),
+                        bgcolor=ACCENT,
+                        border_radius=G16,
+                        content=ft.Row(
+                            spacing=G4,
+                            tight=True,
+                            controls=[
+                                ft.Icon(ft.Icons.LOCK_RESET, color=TEXT_ON_ACCENT, size=FONT_CAPTION),
+                                ft.Text("PEDIU TROCA DE PIN", color=TEXT_ON_ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.W_600),
+                            ],
+                        ),
+                    )
+                )
             tabela.controls.append(
                 ft.Container(
                     padding=ft.padding.symmetric(horizontal=G16, vertical=G12),
                     border=ft.border.only(bottom=ft.BorderSide(1, BORDER)),
+                    bgcolor=BG_INPUT if pediu else None,
                     content=ft.Row(
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                         controls=[
-                            ft.Row(
-                                expand=2,
-                                spacing=G8,
-                                controls=[
-                                    ft.Container(
-                                        width=_AVT_SZ,
-                                        height=_AVT_SZ,
-                                        alignment=ft.alignment.center,
-                                        bgcolor=ACCENT,
-                                        border_radius=_AVT_SZ // 2,
-                                        content=ft.Text(iniciais(d.nome), color=TEXT_PRIMARY, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
-                                    ),
-                                    ft.Text(d.nome, color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.W_600),
-                                ],
-                            ),
+                            ft.Row(expand=2, spacing=G8, controls=nome_controls),
                             ft.Text(d.email, color=TEXT_SECONDARY, size=FONT_CAPTION, expand=2),
                             ft.Container(expand=1, content=status_badge("ADMINISTRADOR" if d.papel == "adm" else "PROFESSOR", active=True)),
                             ft.Row(
-                                width=G48 * 2,
+                                width=G48 * 3,
                                 controls=[
                                     ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=TEXT_SECONDARY, tooltip="Editar", on_click=lambda _, docente=d: abrir_modal_editar(docente)),
+                                    ft.IconButton(icon=ft.Icons.LOCK_RESET, icon_color=ACCENT if pediu else TEXT_SECONDARY, tooltip="Resetar PIN", on_click=lambda _, docente=d: abrir_modal_resetar_pin(docente)),
                                     ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color=TEXT_DANGER, tooltip="Remover", on_click=lambda _, docente=d: remover_docente(docente)),
                                 ],
                             ),
@@ -312,7 +419,7 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                             bgcolor=ACCENT,
                             border=ft.border.all(1, TEXT_PRIMARY),
                             border_radius=G8,
-                            content=ft.Text("Fp", color=TEXT_PRIMARY, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
+                            content=ft.Text("Fp", color=TEXT_ON_ACCENT, size=FONT_CAPTION, weight=ft.FontWeight.BOLD),
                         ),
                         ft.Column(
                             spacing=0,
@@ -361,6 +468,7 @@ def tela_admin_professores(page: ft.Page) -> ft.View:
                                                     ],
                                                 ),
                                                 ft.Text("Cadastre, edite e remova professores.", color=TEXT_SECONDARY, size=FONT_CAPTION),
+                                                aviso_pendentes,
                                             ],
                                         ),
                                         btn_primary("Adicionar professor", on_click=abrir_modal, icon=ft.Icons.PERSON_ADD_ALT),

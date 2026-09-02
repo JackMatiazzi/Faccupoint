@@ -9,6 +9,7 @@ class Participante:
     apelido: str
     ws: Any
     id_participante: int | None = None
+    token_reconexao: str = ""
     pontos: int = 0
     resposta_atual: int | None = None
 
@@ -23,7 +24,10 @@ class Sessao:
     quiz_link_midia: str | None = None
     tempo_questao: int = 20
     status: str = "lobby"
+    fase: str = "lobby"
     questao_atual: int = -1
+    questao_iniciada_em: float | None = None
+    ultimo_resultado: dict | None = None
     participantes: dict[str, Participante] = field(default_factory=dict)
     professor_ws: Any | None = None
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
