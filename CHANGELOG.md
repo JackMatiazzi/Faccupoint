@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.1.1...v1.2.0) (2026-09-02)
+
+
+### Features
+
+* **aluno:** reconexao na sessao e exibicao do peso da questao ([09011c7](https://github.com/JackMatiazzi/Faccupoint/commit/09011c700387595726b1f32cd86c4fd06f2e2e33))
+* **auth:** PIN provisorio com troca obrigatoria, reset via admin e invalidacao de token ao trocar PIN ([60686fe](https://github.com/JackMatiazzi/Faccupoint/commit/60686fe5c40d36a7da453665ca08272961510275))
+
+
+### Bug Fixes
+
+* **test:** define SECRET_KEY no setUp do teste de troca de PIN ([a242bb5](https://github.com/JackMatiazzi/Faccupoint/commit/a242bb54ce20d7ad28c519b2398c002c2301ef43))
+
 ## [1.1.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.1.0...v1.1.1) (2026-07-12)
 
 
