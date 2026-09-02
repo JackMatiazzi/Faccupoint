@@ -1,18 +1,19 @@
 
 import flet as ft
 
-# cores
-BG_PAGE        = "#111116"
-BG_CARD        = "#1c1c24"
-BG_INPUT       = "#262630"
-BORDER         = "#383847"
-ACCENT         = "#6090ff"
-TEXT_PRIMARY   = "#f2f2f8"
-TEXT_SECONDARY = "#8c8ca6"
-TEXT_DANGER    = "#ff5c5c"
-TEXT_SUCCESS   = "#48d98c"
-BTN_GREEN_TEXT = "#111116"
-BTN_DANGER     = "#8c2121"
+# Cores semanticas: o Flet resolve cada uma conforme o tema claro/escuro.
+BG_PAGE        = ft.Colors.SURFACE
+BG_CARD        = ft.Colors.SURFACE_CONTAINER_HIGHEST
+BG_INPUT       = ft.Colors.SURFACE_CONTAINER_HIGHEST
+BORDER         = ft.Colors.OUTLINE
+ACCENT         = ft.Colors.PRIMARY
+TEXT_PRIMARY   = ft.Colors.ON_SURFACE
+TEXT_SECONDARY = ft.Colors.ON_SURFACE_VARIANT
+TEXT_DANGER    = ft.Colors.ERROR
+TEXT_SUCCESS   = "#087443"
+TEXT_ON_ACCENT = ft.Colors.ON_PRIMARY
+BTN_GREEN_TEXT = "#FFFFFF"
+BTN_DANGER     = ft.Colors.ERROR
 
 CORES_ALTERNATIVAS = ["#4355b9", "#c43e31", "#2e7d32", "#e65100"]
 
