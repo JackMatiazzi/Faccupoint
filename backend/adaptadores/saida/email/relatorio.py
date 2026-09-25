@@ -11,6 +11,8 @@ from csv import writer
 from email.message import EmailMessage
 from io import StringIO
 
+from backend.adaptadores.saida.email.gmail import enviar_por_gmail
+
 from backend.adaptadores.saida.postgres.repositorio import buscar_relatorio_sessao
 from backend.infraestrutura.configuracao import load_environment
 
@@ -160,6 +162,15 @@ def _enviar_email(
     anexo_nome: str | None = None,
     anexo_conteudo: bytes | None = None,
 ) -> None:
+    provedor = os.getenv("EMAIL_PROVIDER", "auto").strip().lower()
+    if provedor == "gmail":
+        enviar_por_gmail(
+            destino=destino, assunto=assunto, texto=texto,
+            anexo_nome=anexo_nome, anexo_conteudo=anexo_conteudo,
+        )
+        return
+    if provedor not in ("", "auto"):
+        raise RuntimeError("EMAIL_PROVIDER invalido: use auto ou gmail")
     if _resend_configurado():
         try:
             _enviar_por_resend(
@@ -301,7 +312,8 @@ def _nome_arquivo_csv(relatorio: dict) -> str:
 
 
 def enviar_relatorio_sessao(id_sessao: int) -> None:
-    if not _resend_configurado() and _config_email() is None:
+    provedor = os.getenv("EMAIL_PROVIDER", "auto").strip().lower()
+    if provedor in ("", "auto") and not _resend_configurado() and _config_email() is None:
         logger.warning("email nao configurado")
         return
 
