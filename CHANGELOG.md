@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.2.0...v1.2.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **email:** adiciona envio Gmail API por HTTPS ([027735b](https://github.com/JackMatiazzi/Faccupoint/commit/027735b5dec8f3826eac4a52785b2ff2cee81657))
+* **email:** envia relatorios pela Gmail API via HTTPS ([99801b5](https://github.com/JackMatiazzi/Faccupoint/commit/99801b55f502d4b593ed28be8cf2f61cdc3bb059))
+
 ## [1.2.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.1.1...v1.2.0) (2026-09-02)
 
 
