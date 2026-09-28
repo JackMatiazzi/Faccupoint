@@ -1,0 +1,12 @@
+**
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!packaging/
+!packaging/sala/
+!packaging/sala/**
+backend/.env*
+frontend/.env*
+**/__pycache__/**
+**/*.pyc

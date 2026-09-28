@@ -56,6 +56,10 @@ pip install -r frontend/requirements.txt
 
 ## Execução
 
+Para os testes de seguranca em sala, use o [ambiente de desenvolvimento isolado](packaging/sala/README.md).
+Ele possui banco e credenciais proprios e nao usa o `.env` do banco remoto.
+O procedimento abaixo continua sendo o modo de desenvolvimento tradicional.
+
 Na raiz do projeto:
 
 ```bash
