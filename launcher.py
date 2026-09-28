@@ -348,6 +348,7 @@ def main() -> None:
     _matar_flet_clientes()
     print("abrindo o faccupoint")
     api_url = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
+    os.environ["API_URL"] = api_url
     backend_remoto = not ("127.0.0.1" in api_url or "localhost" in api_url)
 
     if _verificar_atualizacao():
@@ -403,8 +404,6 @@ def main() -> None:
     parar_keepalive = threading.Event()
     if backend_remoto:
         _iniciar_keepalive(api_url, parar_keepalive)
-
-    os.environ["API_URL"] = api_url
 
     if not _FROZEN:
         os.chdir(str(ROOT / "frontend"))
