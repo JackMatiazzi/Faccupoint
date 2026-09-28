@@ -1,3 +1,4 @@
+from compartilhado.pontuacao import formatar_pontos
 
 import asyncio
 import json
@@ -23,7 +24,7 @@ def tela_questao(page: ft.Page) -> ft.View:
     alternativas = dados.get("alternativas", [])
     numero = dados.get("numero", 1)
     total = dados.get("total", 1)
-    peso = int(dados.get("peso", 1))
+    peso = dados.get("peso", 1)
     tempo_total = dados.get("tempo", 20)
     link_midia = dados.get("link_midia")
 
@@ -207,7 +208,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            ft.Text(f"Questão {numero}/{total} · {peso} ponto{'s' if peso != 1 else ''}", size=FONT_CAPTION, color=TEXT_SECONDARY),
+                            ft.Text(f"Questão {numero}/{total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}", size=FONT_CAPTION, color=TEXT_SECONDARY),
                             ft.Row(controls=[texto_tempo, ft.Text("s", color=TEXT_SECONDARY, size=FONT_CAPTION)], spacing=2),
                         ],
                     ),

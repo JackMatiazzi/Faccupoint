@@ -8,6 +8,7 @@ import smtplib
 import urllib.error
 import urllib.request
 from csv import writer
+from decimal import Decimal
 from email.message import EmailMessage
 from io import StringIO
 
@@ -266,6 +267,10 @@ def _milissegundos_do_dia(valor) -> int | str:
 def _montar_csv(relatorio: dict) -> str:
     arquivo = StringIO()
     csv = writer(arquivo, delimiter=";")
+    totais = {}
+    for resposta in relatorio["respostas"]:
+        aluno = resposta.get("id_participante", resposta["aluno"])
+        totais[aluno] = totais.get(aluno, Decimal("0")) + Decimal(str(resposta.get("pontos", 0)))
     csv.writerow([
         "sala",
         "quiz",
@@ -278,6 +283,8 @@ def _montar_csv(relatorio: dict) -> str:
         "resultado",
         "respondida_em",
         "respondida_em_ms",
+        "pontos",
+        "total_pontos_aluno",
     ])
 
     for r in relatorio["respostas"]:
@@ -298,6 +305,8 @@ def _montar_csv(relatorio: dict) -> str:
             resultado,
             _formatar_data_hora(r["respondida_em"]),
             _milissegundos_do_dia(r["respondida_em"]),
+            format(Decimal(str(r.get("pontos", 0))).normalize(), "f").replace(".", ","),
+            format(totais[r.get("id_participante", r["aluno"])].normalize(), "f").replace(".", ","),
         ])
 
     return arquivo.getvalue()
