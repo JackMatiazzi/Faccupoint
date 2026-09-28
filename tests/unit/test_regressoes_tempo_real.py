@@ -52,20 +52,27 @@ class RegressoesTempoRealTest(unittest.TestCase):
             asyncio.run(rotas.ws_aluno(ws, self.codigo))
         return registrar
 
+    def _assert_persistiu_resposta_correta(self, registrar):
+        # So confere os 4 primeiros argumentos: feat/pontuacao-decimal-csv
+        # acrescenta um 5o (peso) quando mergeada junto: essa branch, isolada,
+        # nao envolve peso e nao deve travar nem exigir atualizacao por causa dele.
+        self.assertEqual(registrar.call_count, 1)
+        self.assertEqual(registrar.call_args.args[:4], (99, 40, 2, True))
+
     def test_cliente_publicado_sem_numero_e_aceito(self):
         # Reproduz o executavel 1.2.1 publicado: nunca enviou o campo "numero".
         participante = self._participante_em_pergunta()
         registrar = self._rodar(participante, {"tipo": "resposta", "indice": 1})
 
         self.assertEqual(participante.resposta_atual, 1)
-        registrar.assert_called_once_with(99, 40, 2, True)
+        self._assert_persistiu_resposta_correta(registrar)
 
     def test_cliente_novo_com_numero_correto_e_aceito(self):
         participante = self._participante_em_pergunta()
         registrar = self._rodar(participante, {"tipo": "resposta", "indice": 1, "numero": 1})
 
         self.assertEqual(participante.resposta_atual, 1)
-        registrar.assert_called_once_with(99, 40, 2, True)
+        self._assert_persistiu_resposta_correta(registrar)
 
     def test_numero_de_outra_pergunta_e_rejeitado(self):
         # So passa a ser possivel quando o cliente ja manda "numero"; sem o campo
@@ -104,7 +111,7 @@ class RegressoesTempoRealTest(unittest.TestCase):
         )
 
         self.assertEqual(participante.resposta_atual, 1)
-        registrar.assert_called_once_with(99, 40, 2, True)
+        self._assert_persistiu_resposta_correta(registrar)
 
 
 if __name__ == "__main__":
