@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,25 @@ from backend.main import create_app
 
 
 class ApiSmokeTest(unittest.TestCase):
+    def test_documentacao_desabilitada_por_padrao_e_por_configuracao(self):
+        for valor in (None, "1", "valor-invalido"):
+            with self.subTest(valor=valor), patch.dict(os.environ):
+                if valor is None:
+                    os.environ.pop("DISABLE_DOCS", None)
+                else:
+                    os.environ["DISABLE_DOCS"] = valor
+                client = TestClient(create_app(run_migrations=False))
+                for path in ("/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"):
+                    self.assertEqual(client.get(path).status_code, 404, path)
+                self.assertEqual(client.get("/health").status_code, 200)
+
+    def test_documentacao_exige_habilitacao_explicita(self):
+        with patch.dict(os.environ, {"DISABLE_DOCS": "0"}):
+            client = TestClient(create_app(run_migrations=False))
+        for path in ("/docs", "/redoc", "/openapi.json"):
+            self.assertEqual(client.get(path).status_code, 200, path)
+        self.assertIn("/quizzes", client.get("/openapi.json").json()["paths"])
+
     def setUp(self):
         self.client = TestClient(create_app(run_migrations=False))
 
