@@ -43,8 +43,12 @@ class VideoContinuoTest(unittest.TestCase):
                 content.controls[3].controls[1].on_click(None)
                 send, args = tasks[-1]
                 await send(*args)
+                # So confere tipo/indice: fix/protocolo-respostas-compat acrescenta
+                # "numero" ao mesmo payload quando mergeada junto (conflito de merge
+                # ja esperado nesse arquivo); essa branch isolada nao trata de numero.
                 payload = json.loads(page._ws_aluno.send.call_args.args[0])
-                self.assertEqual(payload, {"tipo": "resposta", "indice": 1})
+                self.assertEqual(payload["tipo"], "resposta")
+                self.assertEqual(payload["indice"], 1)
                 await page._ws_queue.put({"tipo": "questao", "numero": 3, "total": 3,
                     "tempo": 15, "enunciado": "Terceira", "alternativas": ["F", "G"],
                     "link_midia": "https://youtu.be/lmnopqrstuv"})
