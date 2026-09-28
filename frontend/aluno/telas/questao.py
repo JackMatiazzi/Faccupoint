@@ -99,13 +99,13 @@ def tela_questao(page: ft.Page) -> ft.View:
         feedback.value = "aguardando..."
         feedback.color = TEXT_PRIMARY
         page.update()
-        page.run_task(enviar_resposta, indice)
+        page.run_task(enviar_resposta, indice, numero)
 
-    async def enviar_resposta(indice: int) -> None:
+    async def enviar_resposta(indice: int, numero_resposta: int) -> None:
         ws = getattr(page, "_ws_aluno", None)
         if ws:
             try:
-                await ws.send(json.dumps({"tipo": "resposta", "indice": indice}))
+                await ws.send(json.dumps({"tipo": "resposta", "indice": indice, "numero": numero_resposta}))
             except Exception:
                 feedback.value = "Falha ao enviar"
                 feedback.color = TEXT_DANGER
