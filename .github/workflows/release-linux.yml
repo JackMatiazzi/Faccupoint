@@ -46,26 +46,31 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            backend/requirements.txt
-            frontend/requirements.txt
-
-      - name: Instalar dependencias
+      - name: Gerar executavel (compilado em Ubuntu 22.04 p/ compatibilidade de GLIBC)
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r backend/requirements.txt -r frontend/requirements.txt
-          python -m pip install flet-desktop==0.28.3 flet-web==0.28.3 pyinstaller
+          set -eux
+          # GLIBC do ubuntu-latest e mais nova que a do Mint 21.x/Ubuntu 22.04; builda aqui pra manter compatibilidade
+          docker run --rm -v "$PWD:/work" -w /work ubuntu:22.04 bash -c '
+            set -eux
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq >/dev/null
+            apt-get install -y -qq software-properties-common >/dev/null
+            add-apt-repository -y ppa:deadsnakes/ppa >/dev/null
+            apt-get update -qq >/dev/null
+            apt-get install -y -qq python3.12 python3.12-venv python3.12-dev >/dev/null
 
-      - name: Executar testes
-        run: python -m unittest discover -s tests -v
+            python3.12 -m ensurepip --upgrade
+            python3.12 -m pip install --upgrade pip -q
+            python3.12 -m pip install -r backend/requirements.txt -r frontend/requirements.txt -q
+            python3.12 -m pip install flet-desktop==0.28.3 flet-web==0.28.3 pyinstaller -q
 
-      - name: Gerar executavel
-        run: pyinstaller --clean --noconfirm FaccuPoint-Linux.spec
+            python3.12 -m unittest discover -s tests -v
+            python3.12 -m PyInstaller --clean --noconfirm FaccuPoint-Linux.spec
+
+            python3.12 -c "from PIL import Image; Image.open(\"frontend/assets/image/logoF.png\").convert(\"RGBA\").resize((256, 256)).save(\"faccupoint-256.png\")"
+
+            chown -R "$(stat -c "%u:%g" /work)" /work
+          '
 
       - name: Validar pacote gerado
         run: dist/FaccuPoint --smoke-test-package
@@ -75,6 +80,37 @@ jobs:
           chmod +x dist/FaccuPoint
           tar -C dist -czf FaccuPoint-Linux-x86_64.tar.gz FaccuPoint
           sha256sum FaccuPoint-Linux-x86_64.tar.gz > FaccuPoint-Linux-x86_64.tar.gz.sha256
+
+      - name: Montar pacote .deb
+        run: |
+          set -eux
+          version="${{ steps.version.outputs.version }}"
+
+          PKGDIR=deb/faccupoint
+          mkdir -p "$PKGDIR/DEBIAN" \
+                   "$PKGDIR/usr/bin" \
+                   "$PKGDIR/usr/share/applications" \
+                   "$PKGDIR/usr/share/icons/hicolor/256x256/apps"
+
+          sed "s/__VERSION__/$version/" packaging/deb/control.template > "$PKGDIR/DEBIAN/control"
+
+          cp dist/FaccuPoint "$PKGDIR/usr/bin/FaccuPoint"
+          chmod +x "$PKGDIR/usr/bin/FaccuPoint"
+
+          cp packaging/appimage/faccupoint.desktop "$PKGDIR/usr/share/applications/faccupoint.desktop"
+
+          cp faccupoint-256.png "$PKGDIR/usr/share/icons/hicolor/256x256/apps/faccupoint.png"
+
+          dpkg-deb --root-owner-group --build "$PKGDIR" "faccupoint_${version}_amd64.deb"
+          sha256sum "faccupoint_${version}_amd64.deb" > "faccupoint_${version}_amd64.deb.sha256"
+
+      - name: Validar pacote .deb
+        run: |
+          set -eux
+          version="${{ steps.version.outputs.version }}"
+          sudo apt-get install -y "./faccupoint_${version}_amd64.deb"
+          /usr/bin/FaccuPoint --smoke-test-package
+          sudo apt-get remove -y faccupoint
 
       - name: Montar AppImage
         run: |
@@ -95,11 +131,11 @@ jobs:
           cp packaging/appimage/faccupoint.desktop "$APPDIR/faccupoint.desktop"
           cp packaging/appimage/faccupoint.desktop "$APPDIR/usr/share/applications/faccupoint.desktop"
 
-          python -c 'from PIL import Image; Image.open("frontend/assets/image/logoF.png").convert("RGBA").resize((256, 256)).save("'"$APPDIR"'/faccupoint.png")'
+          cp faccupoint-256.png "$APPDIR/faccupoint.png"
           cp "$APPDIR/faccupoint.png" "$APPDIR/usr/share/icons/hicolor/256x256/apps/faccupoint.png"
           ln -sf faccupoint.png "$APPDIR/.DirIcon"
 
-          # type2-runtime: cai sozinho em extract-and-run quando a maquina so tem FUSE 3
+          # sem FUSE nao ha fallback automatico; por isso o .deb e o formato recomendado, isso aqui fica como opcao portatil
           curl -fsSL -o appimagetool \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -fsSL -o runtime-x86_64 \
@@ -121,9 +157,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
+          version="${{ steps.version.outputs.version }}"
           arquivos=(
             FaccuPoint-Linux-x86_64.tar.gz
             FaccuPoint-Linux-x86_64.tar.gz.sha256
+            "faccupoint_${version}_amd64.deb"
+            "faccupoint_${version}_amd64.deb.sha256"
             FaccuPoint-x86_64.AppImage
             FaccuPoint-x86_64.AppImage.sha256
           )
