@@ -65,6 +65,8 @@ def gerar_token_docente(id_docente: int, email: str, papel: str, pin_hash: str) 
 
 
 def verificar_token_docente(token: str) -> dict | None:
+    if not isinstance(token, str) or len(token) > 4096:
+        return None
     try:
         payload_b64, assinatura_b64 = token.split(".", 1)
         assinatura = _b64url_decode(assinatura_b64)
@@ -72,7 +74,11 @@ def verificar_token_docente(token: str) -> dict | None:
         if not hmac.compare_digest(assinatura, esperada):
             return None
         payload = json.loads(_b64url_decode(payload_b64))
-        if int(payload.get("exp", 0)) < int(time.time()):
+        if not isinstance(payload, dict):
+            return None
+        if (type(payload.get("exp")) is not int
+                or type(payload.get("id_docente")) is not int
+                or payload["exp"] <= int(time.time())):
             return None
         return payload
     except (ValueError, TypeError, json.JSONDecodeError):
