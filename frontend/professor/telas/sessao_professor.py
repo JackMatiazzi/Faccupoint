@@ -5,6 +5,7 @@ import io
 import ipaddress
 import json
 import socket
+from urllib.parse import urlsplit
 
 import flet as ft
 import psutil
@@ -15,7 +16,7 @@ from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
-    FONT_CODE, SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
+    SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
     TEXT_SUCCESS,
 )
 from professor.servicos import cliente_api as api
@@ -79,18 +80,56 @@ def _ip_local() -> str:
 
 
 def _gerar_qrcode_b64(url: str) -> str:
-    img = qrcode.make(url)
+    qr = qrcode.QRCode(box_size=16, border=4, error_correction=qrcode.constants.ERROR_CORRECT_M)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def _origem_aluno() -> str:
+    configurada = os.getenv("ALUNO_PUBLIC_URL", "").strip().rstrip("/")
+    if configurada:
+        host = urlsplit(configurada).hostname
+        local = host == "localhost"
+        try:
+            local = local or ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            pass
+        if not local:
+            return configurada
+    return f"http://{_ip_local()}:{_PORTA_ALUNO}"
+
+
 def tela_sessao_professor(page: ft.Page) -> ft.View:
-    codigo_text = ft.Text("----", size=FONT_CODE, weight=ft.FontWeight.BOLD, color=ACCENT)
-    qr_image = ft.Image(width=180, height=180, visible=False)
-    url_text = ft.Text("", size=FONT_CAPTION, color=TEXT_SECONDARY)
+    codigo_text = ft.Text("----", size=56, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY)
+    qr_image = ft.Image(
+        width=720, height=720, fit=ft.ImageFit.CONTAIN,
+        filter_quality=ft.FilterQuality.NONE, visible=False,
+        semantics_label="QR code para entrar na sala",
+    )
+    _url_entrada = [None]
+
+    def copiar_link(e) -> None:
+        if not _url_entrada[0]:
+            return
+        try:
+            page.set_clipboard(_url_entrada[0])
+        except Exception:
+            page.open(ft.SnackBar(ft.Text("Não foi possível copiar o link. Tente novamente.")))
+            return
+        page.open(ft.SnackBar(ft.Text("Link da sala copiado! Compartilhe com os alunos.")))
+
+    btn_copiar_link = ft.OutlinedButton(
+        text="Copiar link da sala", icon=ft.Icons.CONTENT_COPY,
+        on_click=copiar_link, visible=False, height=BTN_H,
+        style=ft.ButtonStyle(color=TEXT_PRIMARY),
+        tooltip="Copia o mesmo link do QR code, incluindo o código da sala",
+    )
     status_text = ft.Text("Escolha um quiz para abrir a sala", color=TEXT_SECONDARY, size=FONT_CAPTION)
-    participantes_col = ft.Row(spacing=8, wrap=True)
+    participantes_col = ft.Column(spacing=8)
     respondidos_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION)
     etapa_text = ft.Text("Etapa 1 de 3: Selecionar quiz", size=FONT_CAPTION, color=TEXT_SECONDARY)
     questao_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD, visible=False)
@@ -144,9 +183,13 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     )
     btn_iniciar = ft.ElevatedButton(
         text="Começar quiz",
-        bgcolor=TEXT_SUCCESS, color=BTN_GREEN_TEXT, width=CARD_W, height=BTN_H,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
-        visible=False,
+        width=CARD_W, height=BTN_H,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
+            bgcolor={ft.ControlState.DISABLED: BG_INPUT, ft.ControlState.DEFAULT: TEXT_SUCCESS},
+            color={ft.ControlState.DISABLED: TEXT_SECONDARY, ft.ControlState.DEFAULT: BTN_GREEN_TEXT},
+        ),
+        visible=False, disabled=True,
     )
     erro = ft.Text("", color=TEXT_DANGER, size=FONT_CAPTION)
 
@@ -186,11 +229,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             return
 
         try:
-            ip = _ip_local()
-            url = (
-                f"http://{ip}:{_PORTA_ALUNO}"
-                f"?codigo={codigo}&api_host={_API_HOST}&api_port={_API_PORT}&api_secure={_API_SECURE}"
-            )
+            origem_aluno = _origem_aluno()
+            url = f"{origem_aluno}?codigo={codigo}"
             qr_b64 = _gerar_qrcode_b64(url)
         except Exception as ex:
             erro.value = f"Erro ao gerar acesso da sala: {type(ex).__name__}: {ex}"
@@ -201,11 +241,13 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
         codigo_text.value = codigo
         qr_image.src_base64 = qr_b64
         qr_image.visible = True
-        url_text.value = f"http://{ip}:{_PORTA_ALUNO}"
+        _url_entrada[0] = url
+        btn_copiar_link.visible = True
         btn_criar.visible = False
         btn_iniciar.visible = True
         btn_iniciar.disabled = True
         selector.disabled = True
+        selector.visible = False
         status_text.value = "Esperando os alunos entrarem..."
         etapa_text.value = "Etapa 2 de 3: Aguardando alunos"
         page.update()
@@ -253,6 +295,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         page.update()
 
                     elif tipo == "questao_professor":
+                        acesso_sala.visible = False
+                        andamento_sala.visible = True
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
                         peso = int(dados.get("peso", 1))
@@ -263,13 +307,16 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         _timer_ativo[0] = True
                         page.run_task(_timer_questao)
                         nova_url = dados.get("link_midia")
-                        if nova_url != _midia_url_atual[0]:
-                            _midia_url_atual[0] = nova_url
+                        chave_midia = id_video_youtube(nova_url) if nova_url else None
+                        chave_midia = chave_midia or nova_url
+                        if chave_midia != _midia_url_atual[0]:
+                            _midia_url_atual[0] = chave_midia
                             midia = _render_media_sessao(nova_url)
                             if midia:
                                 midia_sessao.content = midia
                                 midia_sessao.visible = True
                             else:
+                                midia_sessao.content = None
                                 midia_sessao.visible = False
                         page.update()
 
@@ -286,6 +333,12 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         page.update()
 
                     elif tipo == "fim":
+                        midia_sessao.content = None
+                        midia_sessao.visible = False
+                        _midia_url_atual[0] = None
+                        acesso_sala.visible = False
+                        andamento_sala.visible = True
+                        titulo_andamento.value = "Resultado da aula"
                         _timer_ativo[0] = False
                         btn_iniciar.visible = False
                         status_text.value = "Aula encerrada"
@@ -320,6 +373,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         page.update()
 
         except websockets.exceptions.ConnectionClosed as e:
+            btn_iniciar.disabled = True
             _timer_ativo[0] = False
             code = e.rcvd.code if e.rcvd else 0
             print(f"[ws-professor] conexão fechada code={code}: {e}")
@@ -329,18 +383,23 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                 status_text.value = "Conexão encerrada pelo servidor"
             page.update()
         except OSError as e:
+            btn_iniciar.disabled = True
             _timer_ativo[0] = False
             print(f"[ws-professor] erro de rede (OSError): {e}")
             status_text.value = "Não foi possível conectar ao servidor"
             page.update()
         except Exception as e:
+            btn_iniciar.disabled = True
             _timer_ativo[0] = False
             print(f"[ws-professor] erro inesperado: {type(e).__name__}: {e}")
             status_text.value = f"Erro: {type(e).__name__}"
             page.update()
+        finally:
+            btn_iniciar.disabled = True
+            page.update()
 
     def iniciar_quiz(e) -> None:
-        if not _codigo[0]:
+        if not _codigo[0] or btn_iniciar.disabled:
             return
         try:
             api.iniciar_sessao(_codigo[0])
@@ -351,7 +410,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
         btn_iniciar.visible = False
         status_text.value = "Quiz começou!"
         etapa_text.value = "Etapa 3 de 3: Em andamento"
-        qr_image.visible = False
+        acesso_sala.visible = False
+        andamento_sala.visible = True
         page.update()
 
     btn_criar.on_click = criar_sessao
@@ -370,69 +430,71 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
 
     page.run_task(preparar_sala_depois_de_renderizar)
 
-    card_controles = ft.Container(
-        width=CARD_W,
-        padding=ft.padding.all(CARD_PADDING_SM),
+    acesso_sala = ft.Column(
+        expand=True,
+        spacing=8,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        controls=[
+            ft.Text("Entre na sala", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
+            ft.Text("Aponte a câmera do celular para o QR code", size=18, color=TEXT_SECONDARY,
+                    text_align=ft.TextAlign.CENTER),
+            codigo_text,
+            ft.Container(expand=True, alignment=ft.alignment.center, content=qr_image),
+            btn_copiar_link,
+            ft.Container(
+                padding=ft.padding.symmetric(horizontal=CARD_PADDING_SM, vertical=8),
+                bgcolor="#1a2a1a",
+                border=ft.border.all(1, TEXT_SUCCESS),
+                border_radius=CARD_RADIUS,
+                content=ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        ft.Icon(ft.Icons.WIFI, color=TEXT_SUCCESS, size=FONT_BODY),
+                        ft.Column(spacing=2, expand=True, controls=[
+                            ft.Text(
+                                "Somente alunos na mesma rede Wi-Fi conseguem entrar.",
+                                color=TEXT_SUCCESS, size=FONT_CAPTION,
+                                weight=ft.FontWeight.W_600,
+                            ),
+                            ft.Text(
+                                "Isso confirma presença física na aula, alunos fora da rede não conseguem participar.",
+                                color=TEXT_SECONDARY, size=FONT_CAPTION,
+                            ),
+                        ]),
+                    ],
+                ),
+            ),
+        ],
+    )
+    titulo_andamento = ft.Text("Quiz em andamento", size=28, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY)
+    andamento_sala = ft.Column(
+        expand=True, visible=False, spacing=SPACE_MD, scroll=ft.ScrollMode.AUTO,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=[titulo_andamento, questao_text, midia_sessao, tempo_text, respondidos_text],
+    )
+    card_principal = ft.Container(
+        expand=True, padding=CARD_PADDING_SM, bgcolor=BG_CARD, border_radius=CARD_RADIUS,
+        content=ft.Column(expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                          controls=[acesso_sala, andamento_sala]),
+    )
+    card_alunos = ft.Container(
+        width=300,
+        padding=CARD_PADDING_SM,
         bgcolor=BG_CARD,
         border_radius=CARD_RADIUS,
         content=ft.Column(
             spacing=SPACE_MD,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             controls=[
                 etapa_text,
-                ft.Divider(color=BORDER),
                 selector,
                 btn_criar,
-                codigo_text,
-                qr_image,
-                url_text,
-                ft.Container(
-                    padding=ft.padding.symmetric(horizontal=CARD_PADDING_SM, vertical=8),
-                    bgcolor="#1a2a1a",
-                    border=ft.border.all(1, TEXT_SUCCESS),
-                    border_radius=CARD_RADIUS,
-                    content=ft.Row(
-                        spacing=8,
-                        vertical_alignment=ft.CrossAxisAlignment.START,
-                        controls=[
-                            ft.Icon(ft.Icons.WIFI, color=TEXT_SUCCESS, size=FONT_BODY),
-                            ft.Column(spacing=2, expand=True, controls=[
-                                ft.Text(
-                                    "Somente alunos na mesma rede Wi-Fi conseguem entrar.",
-                                    color=TEXT_SUCCESS, size=FONT_CAPTION,
-                                    weight=ft.FontWeight.W_600,
-                                ),
-                                ft.Text(
-                                    "Isso confirma presença física na aula, alunos fora da rede não conseguem participar.",
-                                    color=TEXT_SECONDARY, size=FONT_CAPTION,
-                                ),
-                            ]),
-                        ],
-                    ),
-                ),
                 btn_iniciar,
                 erro,
-            ],
-        ),
-    )
-
-    card_alunos = ft.Container(
-        expand=True,
-        padding=ft.padding.all(CARD_PADDING_SM),
-        bgcolor=BG_CARD,
-        border_radius=CARD_RADIUS,
-        content=ft.Column(
-            spacing=SPACE_MD,
-            scroll=ft.ScrollMode.AUTO,
-            controls=[
-                ft.Text("Alunos na sala", size=FONT_BODY, color=TEXT_SECONDARY),
                 ft.Divider(color=BORDER),
-                questao_text,
-                midia_sessao,
-                tempo_text,
+                ft.Text("Alunos na sala", size=20, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
                 status_text,
-                respondidos_text,
-                ft.Container(expand=True, content=participantes_col),
+                ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[participantes_col]),
             ],
         ),
     )
@@ -458,8 +520,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                 content=ft.Row(
                     expand=True,
                     spacing=SPACE_MD,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                    controls=[card_controles, card_alunos],
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                    controls=[card_alunos, card_principal],
                 ),
             )
         ],
