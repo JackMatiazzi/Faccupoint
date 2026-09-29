@@ -23,7 +23,12 @@ DB_SCHEMA=faccupoint
 APP_TIMEZONE=America/Sao_Paulo
 CORS_ORIGINS=http://127.0.0.1:8000,http://localhost:8000
 SECRET_KEY=troque-este-segredo-em-producao
+DISABLE_DOCS=1
 ```
+
+A documentacao HTTP fica desativada por padrao: `/docs`, `/redoc` e
+`/openapi.json` retornam 404. Para habilitar somente durante desenvolvimento,
+defina `DISABLE_DOCS=0` no ambiente do backend e reinicie o processo.
 
 Se quiser enviar relatório por email ao fim da aula, adicione também:
 
