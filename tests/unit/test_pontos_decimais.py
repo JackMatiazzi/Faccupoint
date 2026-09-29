@@ -2,6 +2,7 @@ import asyncio
 import csv
 import io
 import json
+import time
 import unittest
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
@@ -60,6 +61,12 @@ class PontosDecimaisTest(unittest.TestCase):
         sessao.participantes["Ana"] = participante
         sessao.status = "rodando"
         sessao.questao_atual = 0
+        # fase/questao_iniciada_em nao sao checados pelo ws_aluno desta branch
+        # sozinha, mas fix/protocolo-respostas-compat exige os dois; setar
+        # aqui deixa o teste correto isolado e ja integrado, sem depender de
+        # saber com antecedencia quais outras branches vao estar presentes.
+        sessao.fase = "pergunta"
+        sessao.questao_iniciada_em = time.monotonic()
 
         ws = AsyncMock()
         ws.receive_text.side_effect = [
