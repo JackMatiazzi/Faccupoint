@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.0...v1.4.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **painel:** tira o texto da alternativa correta da lista de perguntas ([771d160](https://github.com/JackMatiazzi/Faccupoint/commit/771d160e83a3a22448a033585a01291071bc83cb))
+* **painel:** tira o texto da resposta certa da lista de perguntas ([c3fdb11](https://github.com/JackMatiazzi/Faccupoint/commit/c3fdb11bdf9916277edfa30060ceed76e609fd49))
+* **sessao:** encerra sessao anterior do professor ao abrir uma nova ([4d4f4cf](https://github.com/JackMatiazzi/Faccupoint/commit/4d4f4cf49dbc34ed9f41a46c5b2e274718c3933b))
+* **sessao:** encerra sessao anterior do professor ao abrir uma nova ([54a665c](https://github.com/JackMatiazzi/Faccupoint/commit/54a665c5427a9675121537aa1780929d8b64c29c))
+* **sessao:** remove aviso de video do aluno, mostra codigo da sala rodando ([9946bc2](https://github.com/JackMatiazzi/Faccupoint/commit/9946bc2406b9ba06b609375675794b3e7083e99c))
+* **sessao:** tira aviso de video do aluno e mantem codigo da sala visivel ([ae0c926](https://github.com/JackMatiazzi/Faccupoint/commit/ae0c9261a5c57c7c6939d0da321da32d52874c22))
+
 ## [1.4.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.3.1...v1.4.0) (2026-09-29)
 
 
