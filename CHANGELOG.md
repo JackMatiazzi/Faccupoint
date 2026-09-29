@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.2](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.1...v1.4.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* **sessao:** mantem video ao concluir a aula, aumenta o codigo na lateral ([c51546c](https://github.com/JackMatiazzi/Faccupoint/commit/c51546cd8576a6a2583e7d838f86f99d25c157a5))
+* **sessao:** mantem video ao concluir a aula, aumenta o codigo na lateral ([f3da605](https://github.com/JackMatiazzi/Faccupoint/commit/f3da6050984574bf050f1d688ee1efcdc963772e))
+
 ## [1.4.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.0...v1.4.1) (2026-09-29)
 
 
