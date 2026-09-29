@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.3.0...v1.3.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **build:** inclui flet.fastapi como hidden import no executavel Windows ([a98f784](https://github.com/JackMatiazzi/Faccupoint/commit/a98f784cc6ec4a9c7c9f1a401d9e53079a02dcc0))
+* **build:** inclui flet.fastapi como hidden import no executavel Windows ([c86ac66](https://github.com/JackMatiazzi/Faccupoint/commit/c86ac666fc76d4510dc3da711baf781b31344a83))
+* **lobby:** traz o QR/lobby do [#27](https://github.com/JackMatiazzi/Faccupoint/issues/27) que nunca chegou em main ([4e72d5c](https://github.com/JackMatiazzi/Faccupoint/commit/4e72d5ccc4e9eb321d16745de6b6b94937cd062e))
+
 ## [1.3.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.2.1...v1.3.0) (2026-09-29)
 
 
