@@ -348,12 +348,13 @@ async def iniciar(codigo: str, atual: dict = Depends(docente_atual)):
         raise HTTPException(status_code=404, detail="sala nao encontrada")
     if int(atual["id_docente"]) != sessao.id_docente:
         raise HTTPException(status_code=403, detail="sem permissao")
-    if sessao.status != "lobby":
-        raise HTTPException(status_code=400, detail="sala ja iniciada")
-    if not sessao.participantes:
-        raise HTTPException(status_code=400, detail="nenhum aluno na sala")
-    sessao.status = "rodando"
-    sessao.questao_atual = 0
+    async with sessao._lock:
+        if sessao.status != "lobby":
+            raise HTTPException(status_code=400, detail="sala ja iniciada")
+        if not any(p.ws is not None for p in sessao.participantes.values()):
+            raise HTTPException(status_code=400, detail="nenhum aluno conectado na sala")
+        sessao.status = "rodando"
+        sessao.questao_atual = 0
     logger.info("sala %s comecou", codigo)
     asyncio.create_task(_rodar_questao(codigo))
     return {"ok": True}
