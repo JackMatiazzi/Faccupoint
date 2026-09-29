@@ -329,6 +329,7 @@ def _testar_pacote() -> None:
     import psutil
     from aluno.main import main as aluno_main
     from professor.main import main as professor_main
+    from professor.janela import abrir_janela
     from professor.telas.sessao_professor import _gerar_qrcode_b64
 
     png = base64.b64decode(_gerar_qrcode_b64("http://127.0.0.1:8081?codigo=TESTE"))
@@ -409,12 +410,12 @@ def main() -> None:
         os.chdir(str(ROOT / "frontend"))
         sys.path.insert(0, str(ROOT / "frontend"))
 
-    import flet as ft
     from professor.main import main as professor_main
+    from professor.janela import abrir_janela
 
     print("faccupoint aberto")
     try:
-        ft.app(target=professor_main, view=ft.AppView.FLET_APP)
+        abrir_janela(professor_main)
     except KeyboardInterrupt:
         pass
     finally:

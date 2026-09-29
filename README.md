@@ -64,6 +64,14 @@ cd frontend
 python -m aluno.main
 ```
 
+No Windows, a janela do professor usa o Microsoft Edge WebView2 Runtime para
+exibir vídeos do YouTube dentro do FaccuPoint. As dependências Python estão em
+`frontend/requirements.txt`; o runtime deve estar instalado no computador.
+O mesmo vídeo é mantido entre perguntas consecutivas com o mesmo vídeo do
+YouTube. Um vídeo diferente, uma pergunta sem mídia ou o fim da aula encerra
+o player anterior. A reprodução automática começa sem som; o usuário pode
+ativar o áudio no próprio player.
+
 
 ## Testes
 

@@ -108,6 +108,11 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             return None
         video_id = id_video_youtube(url)
         if video_id:
+            if page.web:
+                return ft.WebView(
+                    url=f"https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&rel=0&playsinline=1",
+                    height=360, enable_javascript=True,
+                )
             thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
             return ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -264,13 +269,16 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         _timer_ativo[0] = True
                         page.run_task(_timer_questao)
                         nova_url = dados.get("link_midia")
-                        if nova_url != _midia_url_atual[0]:
-                            _midia_url_atual[0] = nova_url
+                        chave_midia = id_video_youtube(nova_url) if nova_url else None
+                        chave_midia = chave_midia or nova_url
+                        if chave_midia != _midia_url_atual[0]:
+                            _midia_url_atual[0] = chave_midia
                             midia = _render_media_sessao(nova_url)
                             if midia:
                                 midia_sessao.content = midia
                                 midia_sessao.visible = True
                             else:
+                                midia_sessao.content = None
                                 midia_sessao.visible = False
                         page.update()
 

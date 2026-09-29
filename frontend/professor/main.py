@@ -74,7 +74,9 @@ def main(page: ft.Page) -> None:
 
 
 def run_app() -> None:
-    ft.app(target=main, view=ft.AppView.FLET_APP)
+    from professor.janela import abrir_janela
+
+    abrir_janela(main)
 
 
 if __name__ == "__main__":
