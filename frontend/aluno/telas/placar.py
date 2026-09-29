@@ -1,3 +1,4 @@
+from compartilhado.pontuacao import formatar_pontos
 
 from datetime import datetime
 
@@ -40,7 +41,7 @@ def tela_placar(page: ft.Page) -> ft.View:
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     controls=[
                         ft.Text(f"{posicao}. {apelido}", color=TEXT_PRIMARY, size=FONT_CAPTION),
-                        ft.Text(f"{pontos} ponto{'s' if pontos != 1 else ''}", color=TEXT_SECONDARY, size=FONT_CAPTION),
+                        ft.Text(f"{formatar_pontos(pontos)} ponto{'s' if pontos != 1 else ''}", color=TEXT_SECONDARY, size=FONT_CAPTION),
                     ],
                 ),
             )

@@ -1,3 +1,4 @@
+from compartilhado.pontuacao import formatar_pontos
 
 import asyncio
 import json
@@ -23,7 +24,7 @@ def tela_questao(page: ft.Page) -> ft.View:
     alternativas = dados.get("alternativas", [])
     numero = dados.get("numero", 1)
     total = dados.get("total", 1)
-    peso = int(dados.get("peso", 1))
+    peso = dados.get("peso", 1)
     tempo_total = dados.get("tempo", 20)
     link_midia = dados.get("link_midia")
 
@@ -195,7 +196,7 @@ def tela_questao(page: ft.Page) -> ft.View:
     enunciado_text = ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER)
 
     def texto_cabecalho() -> str:
-        return f"Questão {numero}/{total} · {peso} ponto{'s' if peso != 1 else ''}"
+        return f"Questão {numero}/{total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}"
 
     def chave_midia(url):
         return id_video_youtube(url) or url
@@ -207,7 +208,7 @@ def tela_questao(page: ft.Page) -> ft.View:
         questao_token = page._questao_token
         numero = novos_dados.get("numero", 1)
         total = novos_dados.get("total", 1)
-        peso = int(novos_dados.get("peso", 1))
+        peso = novos_dados.get("peso", 1)
         tempo_total = novos_dados.get("tempo", 20)
         resposta_enviada[0] = novos_dados.get("resposta_atual")
         enunciado_text.value = novos_dados.get("enunciado", "")
