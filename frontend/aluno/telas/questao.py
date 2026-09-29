@@ -100,13 +100,13 @@ def tela_questao(page: ft.Page) -> ft.View:
         feedback.value = "aguardando..."
         feedback.color = TEXT_PRIMARY
         page.update()
-        page.run_task(enviar_resposta, indice)
+        page.run_task(enviar_resposta, indice, numero)
 
-    async def enviar_resposta(indice: int) -> None:
+    async def enviar_resposta(indice: int, numero_resposta: int) -> None:
         ws = getattr(page, "_ws_aluno", None)
         if ws:
             try:
-                await ws.send(json.dumps({"tipo": "resposta", "indice": indice}))
+                await ws.send(json.dumps({"tipo": "resposta", "indice": indice, "numero": numero_resposta}))
             except Exception:
                 feedback.value = "Falha ao enviar"
                 feedback.color = TEXT_DANGER
@@ -127,6 +127,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                     return
 
                 elif tipo == "resultado":
+                    page._questao_token += 1
                     corretas = dados_ws.get("indices_corretos", [])
                     acertou = dados_ws.get("acertou")
                     if resposta_enviada[0] is None:
@@ -143,13 +144,11 @@ def tela_questao(page: ft.Page) -> ft.View:
                     page.update()
 
                 elif tipo == "questao":
-                    page._mensagem_questao = dados_ws
-                    page.views.clear()
-                    page.views.append(tela_questao(page))
-                    page.update()
-                    return
+                    atualizar_questao(dados_ws)
 
                 elif tipo == "fim":
+                    page._questao_token += 1
+                    media_container.content = None
                     page._placar_final = dados_ws.get("placar", [])
                     ws = getattr(page, "_ws_aluno", None)
                     if ws:
@@ -164,12 +163,12 @@ def tela_questao(page: ft.Page) -> ft.View:
         except Exception:
             _mostrar_conexao_perdida()
 
-    async def countdown() -> None:
-        for t in range(tempo_total, -1, -1):
-            if getattr(page, "_questao_token", None) != questao_token:
+    async def countdown(token: int, duracao: int) -> None:
+        for t in range(duracao, -1, -1):
+            if getattr(page, "_questao_token", None) != token:
                 return
 
-            progresso.value = t / max(tempo_total, 1)
+            progresso.value = t / max(duracao, 1)
             texto_tempo.value = str(t) if t > 0 else "0"
             page.update()
             if t == 0:
@@ -191,9 +190,51 @@ def tela_questao(page: ft.Page) -> ft.View:
         feedback.value = "Resposta enviada. Aguardando o resultado..."
         feedback.color = TEXT_SECONDARY
 
-    media_ctrl = _render_media(link_midia)
+    media_container = ft.Container(content=_render_media(link_midia), visible=bool(link_midia))
+    alternativas_col = ft.Column(controls=botoes, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+    cabecalho = ft.Text(size=FONT_CAPTION, color=TEXT_SECONDARY)
+    enunciado_text = ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER)
 
-    page.run_task(countdown)
+    def texto_cabecalho() -> str:
+        return f"Questão {numero}/{total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}"
+
+    def chave_midia(url):
+        return id_video_youtube(url) or url
+
+    def atualizar_questao(novos_dados: dict) -> None:
+        nonlocal numero, total, peso, tempo_total, link_midia, questao_token
+        page._mensagem_questao = novos_dados
+        page._questao_token += 1
+        questao_token = page._questao_token
+        numero = novos_dados.get("numero", 1)
+        total = novos_dados.get("total", 1)
+        peso = novos_dados.get("peso", 1)
+        tempo_total = novos_dados.get("tempo", 20)
+        resposta_enviada[0] = novos_dados.get("resposta_atual")
+        enunciado_text.value = novos_dados.get("enunciado", "")
+        cabecalho.value = texto_cabecalho()
+        feedback.value = ""
+        feedback.color = TEXT_PRIMARY
+        btn_voltar_inicio.visible = False
+        progresso.value = 1.0
+        texto_tempo.value = str(tempo_total)
+        botoes.clear()
+        botoes.extend(fazer_botao(i, alt) for i, alt in enumerate(novos_dados.get("alternativas", [])))
+        alternativas_col.controls = botoes
+        if resposta_enviada[0] is not None:
+            for botao in botoes:
+                botao.disabled = True
+            feedback.value = "Resposta enviada. Aguardando o resultado..."
+        nova_midia = novos_dados.get("link_midia")
+        if chave_midia(nova_midia) != chave_midia(link_midia):
+            media_container.content = _render_media(nova_midia)
+            media_container.visible = bool(nova_midia)
+        link_midia = nova_midia
+        page.update()
+        page.run_task(countdown, questao_token, tempo_total)
+
+    cabecalho.value = texto_cabecalho()
+    page.run_task(countdown, questao_token, tempo_total)
     page.run_task(aguardar_resultado)
 
     return ft.View(
@@ -208,7 +249,7 @@ def tela_questao(page: ft.Page) -> ft.View:
                     ft.Row(
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         controls=[
-                            ft.Text(f"Questão {numero}/{total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}", size=FONT_CAPTION, color=TEXT_SECONDARY),
+                            cabecalho,
                             ft.Row(controls=[texto_tempo, ft.Text("s", color=TEXT_SECONDARY, size=FONT_CAPTION)], spacing=2),
                         ],
                     ),
@@ -225,10 +266,11 @@ def tela_questao(page: ft.Page) -> ft.View:
                                     padding=ft.padding.all(CARD_PADDING_SM),
                                     bgcolor=BG_CARD,
                                     border_radius=CARD_RADIUS,
-                                    content=ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
+                                    content=enunciado_text,
                                 ),
-                                *([ft.Container(height=SPACE_MD), media_ctrl] if media_ctrl else [ft.Container(height=SPACE_MD)]),
-                                *botoes,
+                                ft.Container(height=SPACE_MD),
+                                media_container,
+                                alternativas_col,
                                 ft.Container(height=8),
                                 feedback,
                                 btn_voltar_inicio,

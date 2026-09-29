@@ -1,6 +1,5 @@
 
 import re
-from urllib.parse import urlparse
 
 import flet as ft
 from compartilhado.tema import botao_tema
@@ -16,19 +15,11 @@ from compartilhado.sistema_design.tokens import (
 def tela_entrar(page: ft.Page) -> ft.View:
     erro = ft.Text("", color=TEXT_DANGER, size=FONT_CAPTION)
 
-    parsed = urlparse(getattr(page, "url", "") or "")
-    _ip = query_valor(page, "api_host") or parsed.hostname or page.sessao_ip or "127.0.0.1"
-    _api_porta = query_valor(page, "api_port") or query_valor(page, "api") or page.sessao_porta or "8000"
-    _api_secure = (query_valor(page, "api_secure") or "0") == "1"
     if getattr(page, "_forcar_entrada_manual", False):
         page._forcar_entrada_manual = False
         _codigo_url = ""
     else:
         _codigo_url = (query_valor(page, "codigo") or page.sessao_codigo or "").upper()
-
-    page.sessao_ip = _ip
-    page.sessao_porta = str(_api_porta)
-    page.sessao_api_secure = _api_secure
 
     def _campo(label: str, **kw) -> ft.TextField:
         return ft.TextField(
