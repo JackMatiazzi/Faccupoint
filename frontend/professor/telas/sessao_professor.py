@@ -16,7 +16,7 @@ from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.pontuacao import formatar_pontos
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
-    CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
+    CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION, FONT_SUBHEADING,
     SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
     TEXT_SUCCESS,
 )
@@ -133,7 +133,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     participantes_col = ft.Column(spacing=8)
     respondidos_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION)
     etapa_text = ft.Text("Etapa 1 de 3: Selecionar quiz", size=FONT_CAPTION, color=TEXT_SECONDARY)
-    codigo_sidebar_text = ft.Text("", size=FONT_CAPTION, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD, visible=False)
+    codigo_sidebar_text = ft.Text("", size=FONT_SUBHEADING, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD, visible=False)
     questao_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD, visible=False)
     tempo_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION, visible=False)
 
@@ -342,9 +342,6 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         page.update()
 
                     elif tipo == "fim":
-                        midia_sessao.content = None
-                        midia_sessao.visible = False
-                        _midia_url_atual[0] = None
                         acesso_sala.visible = False
                         andamento_sala.visible = True
                         titulo_andamento.value = "Resultado da aula"
