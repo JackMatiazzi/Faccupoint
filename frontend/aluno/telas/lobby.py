@@ -5,6 +5,7 @@ import json
 import flet as ft
 import websockets
 
+from compartilhado.conexao_api import backend_confiavel, codigo_valido, sessao_compativel, websocket_aluno
 from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_H, BTN_RADIUS,
@@ -39,27 +40,36 @@ def tela_lobby(page: ft.Page) -> ft.View:
 
     async def conectar() -> None:
         try:
+            backend = backend_confiavel()
+        except ValueError:
+            status.value = "Configuracao do servidor invalida. Avise o professor."
+            status.color = TEXT_DANGER
+            page.update()
+            return
+        try:
             salva = await page.client_storage.get_async(chave_sessao) or {}
         except Exception:
             salva = {}
+        if not sessao_compativel(salva, backend):
+            salva = {}
+            try:
+                await page.client_storage.remove_async(chave_sessao)
+            except Exception:
+                pass
         if not page.sessao_codigo and salva:
-            page.sessao_codigo = str(salva.get("codigo", ""))
-            page.sessao_apelido = str(salva.get("apelido", ""))
-            page.sessao_ip = str(salva.get("api_host", page.sessao_ip))
-            page.sessao_porta = str(salva.get("api_port", page.sessao_porta))
-            page.sessao_api_secure = bool(salva.get("api_secure", False))
+            page.sessao_codigo = salva["codigo"]
+            page.sessao_apelido = salva["apelido"]
         token_reconexao = ""
         if salva.get("codigo") == page.sessao_codigo and salva.get("apelido") == page.sessao_apelido:
             token_reconexao = str(salva.get("token_reconexao", ""))
-        if not page.sessao_codigo or not page.sessao_apelido:
+        if not codigo_valido(page.sessao_codigo) or not page.sessao_apelido:
             status.value = "Sessao nao encontrada. Volte ao inicio para entrar novamente."
             status.color = TEXT_DANGER
             btn_tentar_novamente.visible = True
             page.update()
             return
 
-        scheme = "wss" if getattr(page, "sessao_api_secure", False) else "ws"
-        uri = f"{scheme}://{page.sessao_ip}:{page.sessao_porta}/ws/aluno/{page.sessao_codigo}"
+        uri = websocket_aluno(page.sessao_codigo)
         navegou = [False]
         page._ws_queue = asyncio.Queue()
         try:
@@ -82,9 +92,7 @@ def tela_lobby(page: ft.Page) -> ft.View:
                         await page.client_storage.set_async(chave_sessao, {
                             "codigo": page.sessao_codigo,
                             "apelido": page.sessao_apelido,
-                            "api_host": page.sessao_ip,
-                            "api_port": page.sessao_porta,
-                            "api_secure": page.sessao_api_secure,
+                            "backend": backend,
                             "token_reconexao": page.sessao_token_reconexao,
                         })
                     except Exception:
@@ -147,7 +155,7 @@ def tela_lobby(page: ft.Page) -> ft.View:
                 else:
                     queue = getattr(page, "_ws_queue", None)
                     if queue:
-                        detalhe = f"{type(e).__name__}: {str(e)[:80]}"
+                        detalhe = "Conexao interrompida. Tente entrar novamente."
                         queue.put_nowait({"tipo": "_erro_conexao", "detalhe": detalhe})
 
     page.run_task(conectar)
