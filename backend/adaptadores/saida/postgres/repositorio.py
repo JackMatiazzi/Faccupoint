@@ -4,6 +4,7 @@ import os
 import psycopg2
 
 from backend.dominio.pergunta import normalizar_pergunta, validar_link_midia, validar_peso
+from backend.dominio.docente import normalizar_docente
 from backend.infraestrutura.configuracao import database_url, load_environment
 from backend.infraestrutura.seguranca import gerar_hash_pin
 
@@ -100,6 +101,7 @@ def cadastrar_docente(
 ) -> None:
     if papel not in PAPEIS_VALIDOS:
         raise ValueError("Papel inválido. Use 'adm' ou 'prof'.")
+    nome, email = normalizar_docente(nome, email, pin, novo=True)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
@@ -109,6 +111,8 @@ def cadastrar_docente(
                 (nome.strip(), email.strip().lower(), gerar_hash_pin(pin), papel, precisa_trocar_pin),
             )
         conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        raise ValueError("Já existe um docente com esse email.") from None
     finally:
         conn.close()
 
@@ -123,10 +127,7 @@ def atualizar_docente(
 ) -> None:
     if papel not in PAPEIS_VALIDOS:
         raise ValueError("Papel inválido. Use 'adm' ou 'prof'.")
-    nome = nome.strip()
-    email = email.strip().lower()
-    if not nome or not email:
-        raise ValueError("Nome e email não podem ser vazios.")
+    nome, email = normalizar_docente(nome, email, pin, novo=False)
     conn = _conectar()
     try:
         with conn.cursor() as cur:
@@ -151,6 +152,8 @@ def atualizar_docente(
             if cur.rowcount == 0:
                 raise ValueError("Docente não encontrado.")
         conn.commit()
+    except psycopg2.errors.UniqueViolation:
+        raise ValueError("Já existe um docente com esse email.") from None
     finally:
         conn.close()
 
@@ -567,6 +570,8 @@ def buscar_link_midia_quiz(id_quiz: int) -> str | None:
 
 
 def cadastrar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> int:
+    if tempo_segundos is not None and (type(tempo_segundos) is not int or tempo_segundos <= 0):
+        raise ValueError("Tempo por questão deve ser um número inteiro maior que zero.")
     titulo = titulo.strip()
     if not titulo:
         raise ValueError("Título não pode ser vazio.")
@@ -587,6 +592,8 @@ def cadastrar_quiz(id_docente: int, titulo: str, descricao: str | None, tempo_se
 
 
 def atualizar_quiz(id_quiz: int, id_docente: int, titulo: str, descricao: str | None, tempo_segundos: int | None = None, link_midia: str | None = None) -> None:
+    if tempo_segundos is not None and (type(tempo_segundos) is not int or tempo_segundos <= 0):
+        raise ValueError("Tempo por questão deve ser um número inteiro maior que zero.")
     titulo = titulo.strip()
     if not titulo:
         raise ValueError("Título não pode ser vazio.")
