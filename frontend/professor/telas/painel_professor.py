@@ -523,7 +523,6 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
         btn_abrir_sala.disabled = len(perguntas) == 0
 
         for idx, p in enumerate(perguntas, start=1):
-            corretas = [a.texto for a in p.alternativas if a.correta]
             lista_perguntas.controls.append(
                 ft.Container(
                     padding=ft.padding.all(G12), bgcolor=BG_INPUT,
@@ -542,7 +541,6 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                         ft.Row(wrap=True, spacing=G8, controls=[
                             _chip(f"{len(p.alternativas)} alts"),
                             _chip(f"{formatar_pontos(p.peso)} ponto{'s' if p.peso != 1 else ''}", ft.Icons.STAR_OUTLINE),
-                            *[_chip(c) for c in corretas[:2]],
                         ]),
                     ]),
                 )
