@@ -150,7 +150,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             if page.web:
                 return ft.WebView(
                     url=f"https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&rel=0&playsinline=1",
-                    height=360, enable_javascript=True,
+                    height=640, enable_javascript=True,
                 )
             thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
             return ft.Column(

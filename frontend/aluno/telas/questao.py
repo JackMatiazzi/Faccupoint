@@ -31,13 +31,11 @@ def tela_questao(page: ft.Page) -> ft.View:
     def _render_media(url: str | None) -> ft.Control | None:
         if not url:
             return None
-        video_id = id_video_youtube(url)
-        if video_id:
-            embed = (
-                f"https://www.youtube.com/embed/{video_id}"
-                f"?autoplay=1&mute=1&rel=0&playsinline=1"
+        if id_video_youtube(url):
+            return ft.Text(
+                "Vídeo sendo exibido no telão do professor",
+                size=FONT_CAPTION, color=TEXT_SECONDARY, text_align=ft.TextAlign.CENTER,
             )
-            return ft.WebView(url=embed, height=200, enable_javascript=True)
         if eh_imagem(url):
             return ft.Image(src=url, height=200, fit=ft.ImageFit.CONTAIN, border_radius=CARD_RADIUS)
         return ft.ElevatedButton(
