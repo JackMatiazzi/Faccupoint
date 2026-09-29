@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.3.1...v1.4.0) (2026-09-29)
+
+
+### Features
+
+* **video:** aumenta o video no telao do professor e tira da tela do aluno ([9d58ac2](https://github.com/JackMatiazzi/Faccupoint/commit/9d58ac28ad0337b4a392891b56698b727051e6b0))
+* **video:** video maior no telao do professor, some da tela do aluno ([6c5ea21](https://github.com/JackMatiazzi/Faccupoint/commit/6c5ea2188e63e9c3c84c6ad5a191f6672f666e27))
+
+
+### Bug Fixes
+
+* **painel:** peso da pergunta aceita separador decimal no campo ([c6da8a0](https://github.com/JackMatiazzi/Faccupoint/commit/c6da8a02a0e7723e1886ca994e7277d2675c3a70))
+* **painel:** peso da pergunta aceita separador decimal no campo ([c43b671](https://github.com/JackMatiazzi/Faccupoint/commit/c43b67194449c9bddae46885175efdca1ff9143c))
+
 ## [1.3.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.3.0...v1.3.1) (2026-09-29)
 
 
