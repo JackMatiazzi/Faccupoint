@@ -23,43 +23,29 @@ _MAX_TENTATIVAS_RESET = 3
 _JANELA_RESET_SEGUNDOS = 600
 
 
-def _checar_rate_limit_reset(email: str) -> None:
+def _reservar(tabela, lock, chave, limite, janela):
+    # Reserva antes do trabalho caro: concorrentes nao atravessam a verificacao.
     agora = time.monotonic()
-    with _lock_reset:
-        tentativas = _tentativas_reset[email]
-        tentativas[:] = [t for t in tentativas if agora - t < _JANELA_RESET_SEGUNDOS]
-        if len(tentativas) >= _MAX_TENTATIVAS_RESET:
-            segundos = max(1, math.ceil(_JANELA_RESET_SEGUNDOS - (agora - min(tentativas))))
-            raise HTTPException(
-                status_code=429,
-                detail=f"muitas tentativas, tente novamente em {segundos} segundos",
-                headers={"Retry-After": str(segundos)},
-            )
-        tentativas.append(agora)
+    with lock:
+        for antiga in list(tabela):
+            tabela[antiga][:] = [t for t in tabela[antiga] if agora - t < janela]
+            if not tabela[antiga]:
+                del tabela[antiga]
+        tentativas = tabela.get(chave, [])
+        if len(tentativas) >= limite or (chave not in tabela and len(tabela) >= 4096):
+            segundos = max(1, math.ceil(janela - (agora - min(tentativas)))) if tentativas else janela
+            raise HTTPException(429, detail=f"muitas tentativas, tente novamente em {segundos} segundos",
+                                headers={"Retry-After": str(segundos)})
+        tabela.setdefault(chave, []).append(agora)
+
+
+def _checar_rate_limit_reset(email: str) -> None:
+    _reservar(_tentativas_reset, _lock_reset, email, _MAX_TENTATIVAS_RESET, _JANELA_RESET_SEGUNDOS)
 
 
 def _checar_rate_limit_login(email: str) -> None:
-    agora = time.monotonic()
-    with _lock_login:
-        tentativas = _tentativas_login[email]
-        tentativas[:] = [t for t in tentativas if agora - t < _JANELA_LOGIN_SEGUNDOS]
-        if len(tentativas) >= _MAX_TENTATIVAS_LOGIN:
-            segundos = max(1, math.ceil(_JANELA_LOGIN_SEGUNDOS - (agora - min(tentativas))))
-            raise HTTPException(
-                status_code=429,
-                detail=f"muitas tentativas, tente novamente em {segundos} segundos",
-                headers={"Retry-After": str(segundos)},
-            )
+    _reservar(_tentativas_login, _lock_login, email, _MAX_TENTATIVAS_LOGIN, _JANELA_LOGIN_SEGUNDOS)
 
-
-def _registrar_falha_login(email: str) -> None:
-    with _lock_login:
-        _tentativas_login[email].append(time.monotonic())
-
-
-def _limpar_falhas_login(email: str) -> None:
-    with _lock_login:
-        _tentativas_login.pop(email, None)
 
 from backend.adaptadores.saida.postgres.repositorio import (
     ADM, PROF,
@@ -178,9 +164,7 @@ def login(corpo: LoginEntrada):
     _checar_rate_limit_login(email)
     docente = buscar_docente_por_email(email)
     if docente is None or not verificar_pin(corpo.pin, docente[3]):
-        _registrar_falha_login(email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="email ou pin incorretos")
-    _limpar_falhas_login(email)
     token = gerar_token_docente(docente[0], docente[2], docente[4], docente[3])
     return LoginSaida(
         id_docente=docente[0],
@@ -224,7 +208,6 @@ def trocar_pin(corpo: TrocarPinEntrada, atual: dict = Depends(docente_trocando_p
     _checar_rate_limit_login(email)
     docente = buscar_docente_por_email(email)
     if docente is None or not verificar_pin(corpo.pin_atual, docente[3]):
-        _registrar_falha_login(email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="PIN atual incorreto")
     if not re.fullmatch(r"\d{4}", corpo.novo_pin):
         raise HTTPException(status_code=400, detail="PIN deve ter exatamente 4 digitos")
@@ -233,7 +216,6 @@ def trocar_pin(corpo: TrocarPinEntrada, atual: dict = Depends(docente_trocando_p
     novo_hash = trocar_pin_docente(int(atual["id_docente"]), corpo.novo_pin)
     if novo_hash is None:
         raise HTTPException(status_code=404, detail="docente nao encontrado")
-    _limpar_falhas_login(email)
     token = gerar_token_docente(int(atual["id_docente"]), email, str(atual["papel"]), novo_hash)
     return {"ok": True, "token": token}
 

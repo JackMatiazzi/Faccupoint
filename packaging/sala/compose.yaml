@@ -1,0 +1,85 @@
+name: faccupoint-sala
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: faccupoint
+      POSTGRES_USER: bootstrap
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets: [db_password, db_admin_password]
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./00-role.sh:/docker-entrypoint-initdb.d/00-role.sh:ro
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    networks: [interna]
+    mem_limit: 512m
+    pids_limit: 128
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U bootstrap -d faccupoint"]
+      interval: 5s
+      retries: 12
+  backend:
+    build:
+      context: ../..
+      dockerfile: packaging/sala/Dockerfile
+    environment:
+      DISABLE_DOCS: "1"
+      DB_SCHEMA: public
+      APP_TIMEZONE: America/Sao_Paulo
+    secrets: [db_password, token_key, admin_pin]
+    networks: [interna]
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    pids_limit: 128
+  aluno:
+    build:
+      context: ../..
+      dockerfile: packaging/sala/Dockerfile
+    command: [python, -m, uvicorn, aluno_web:app, --app-dir, /app/packaging/sala, --host, "0.0.0.0", --port, "8081", --workers, "1", --no-proxy-headers, --ws-max-size, "262144", --ws-max-queue, "16", --limit-concurrency, "512"]
+    environment:
+      API_URL: http://backend:8000
+      WS_MAX_MESSAGE_BYTES: "262144"
+      WS_MESSAGES_PER_MINUTE: "600"
+      WS_ALLOW_BINARY: "1"
+    networks: [interna]
+    depends_on: [backend]
+    read_only: true
+    tmpfs: [/tmp, /home/app/.cache]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    pids_limit: 128
+  proxy:
+    image: caddy:2-alpine
+    ports: ["${SALA_BIND:-127.0.0.1}:8081:8081", "127.0.0.1:18000:18000"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [interna, entrada]
+    depends_on: [aluno]
+    mem_limit: 256m
+    pids_limit: 128
+networks:
+  interna:
+    internal: true
+  entrada: {}
+volumes:
+  db_data: {}
+  caddy_data: {}
+  caddy_config: {}
+secrets:
+  admin_pin:
+    file: ../../.local/sala-secrets/admin_pin
+  db_admin_password:
+    file: ../../.local/sala-secrets/db_admin_password
+  db_password:
+    file: ../../.local/sala-secrets/db_password
+  token_key:
+    file: ../../.local/sala-secrets/token_key
