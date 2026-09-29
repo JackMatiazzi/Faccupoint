@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +312,7 @@ class CadastrarQuizEntrada(BaseModel):
     id_docente_proprietario: int
     titulo: str
     descricao: str | None = None
-    tempo_segundos: int | None = None
+    tempo_segundos: int | None = Field(default=None, gt=0, strict=True)
     link_midia: str | None = None
 
 
@@ -320,7 +320,7 @@ class AtualizarQuizEntrada(BaseModel):
     id_docente_proprietario: int
     titulo: str
     descricao: str | None = None
-    tempo_segundos: int | None = None
+    tempo_segundos: int | None = Field(default=None, gt=0, strict=True)
     link_midia: str | None = None
 
 
