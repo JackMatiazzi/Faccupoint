@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.2.1...v1.3.0) (2026-09-29)
+
+
+### Features
+
+* **pontuacao:** peso decimal (0,01 a 100) com snapshot dos pontos por tentativa ([4fc5e44](https://github.com/JackMatiazzi/Faccupoint/commit/4fc5e44beb454f64cdc8707f35a04c56f68955ee))
+* **pontuacao:** peso decimal por pergunta, snapshot de pontos e CSV ([90d2ca0](https://github.com/JackMatiazzi/Faccupoint/commit/90d2ca08c1580aab18f95dd271321a13dbba8c48))
+* **professor:** janela dedicada via WebView2 no Windows ([a438138](https://github.com/JackMatiazzi/Faccupoint/commit/a4381381bce2e8d9f52cba87abe5753db6747f08))
+* **professor:** janela do Windows passa a usar WebView2 pra videos incorporados ([da7dfa1](https://github.com/JackMatiazzi/Faccupoint/commit/da7dfa102d1671867a529747d362a5a3c7e8f96f))
+
+
+### Bug Fixes
+
+* **aluno:** backend confiavel definido so pelo operador, nao por query da URL ([67bd82d](https://github.com/JackMatiazzi/Faccupoint/commit/67bd82dd03105c5ff9119ef29426e183b111d1e5))
+* **aluno:** backend confiavel definido so pelo operador, nao por query da URL ([c81c758](https://github.com/JackMatiazzi/Faccupoint/commit/c81c75826000d2565ddd836709f11faccb15ee18))
+* **aluno:** preserva o player de video entre perguntas consecutivas ([8148301](https://github.com/JackMatiazzi/Faccupoint/commit/8148301413afab62d6299f907404efeb471b6449))
+* **cadastro:** valida campos de docente e tempo de quiz antes do banco ([8ef6013](https://github.com/JackMatiazzi/Faccupoint/commit/8ef6013a61f63225a3285b25ed19b6cdd911edfe))
+* **cadastro:** valida campos de docente e tempo de quiz antes do banco ([212fa7d](https://github.com/JackMatiazzi/Faccupoint/commit/212fa7dd302be0dc1271496973680d27f4373ab6))
+* **conexao:** propaga API_URL pro ambiente antes de abrir os subprocessos ([3949ad1](https://github.com/JackMatiazzi/Faccupoint/commit/3949ad1af0349abbf2d2a2a04ce634a3c5f73f37))
+* **pontuacao:** Participante.pontos vira float ([3b21529](https://github.com/JackMatiazzi/Faccupoint/commit/3b2152923b73cbe31c0f05c0887965cf6128b815))
+* **protocolo:** aceita numero opcional na resposta para compatibilidade com 1.2.1 ([a4badc8](https://github.com/JackMatiazzi/Faccupoint/commit/a4badc80aa3ed9cec8a298e21d97e43e371c898e))
+* **sala:** encadeia sobre fix/seguranca-sessoes; packaging/sala/aluno_web.py importava LimitesMiddleware, que so existe la ([9238044](https://github.com/JackMatiazzi/Faccupoint/commit/92380444182e816f3523f8e91b2e1c0ee6a5752a))
+* **sala:** encadeia tambem sobre fix/conexao-alunos; compose configurava API_URL que o cliente antigo ignorava ([d7aef43](https://github.com/JackMatiazzi/Faccupoint/commit/d7aef432ea3884b9d2bc492dda57b5acb6a6bd8c))
+* **seguranca:** revalida sessao do professor, protege reconexao e adiciona limites ([89145d3](https://github.com/JackMatiazzi/Faccupoint/commit/89145d3a008f6718b7693c3d957567ac491faa87))
+* **tempo-real:** aceita numero opcional na resposta para compatibilidade com 1.2.1 ([897535a](https://github.com/JackMatiazzi/Faccupoint/commit/897535ae2920ee6e43f1d1e7f2385fe97fb7b3da))
+* **video-aluno:** preserva o player de video entre perguntas ([0762275](https://github.com/JackMatiazzi/Faccupoint/commit/07622757972241df08aae543cbd8e0652f943c6d))
+
 ## [1.2.1](https://github.com/JackMatiazzi/Faccupoint/compare/v1.2.0...v1.2.1) (2026-09-25)
 
 
