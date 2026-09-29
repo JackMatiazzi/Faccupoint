@@ -54,16 +54,25 @@ class NumeroAposTrocarPerguntaTest(unittest.TestCase):
                 "enunciado": "Segunda", "alternativas": ["C", "D"],
             })
             await asyncio.sleep(0)
-            self.assertTrue(running.done())
+            # Nao afirma que a tarefa terminou aqui: nesta branch isolada, uma
+            # nova "questao" recria a view e retorna; com fix/video-continuo-
+            # aluno tambem integrada, a mesma tarefa continua viva atualizando
+            # a view no lugar. O que importa pro protocolo e so o payload
+            # enviado, nao qual das duas estrategias de render esta ativa.
+            try:
+                botao_d = _encontrar_botao(page.views[-1], "D")
+                self.assertIsNotNone(botao_d, "botao da alternativa 'D' nao encontrado na view renderizada")
+                botao_d.on_click(None)
 
-            botao_d = _encontrar_botao(page.views[-1], "D")
-            self.assertIsNotNone(botao_d, "botao da alternativa 'D' nao encontrado na view renderizada")
-            botao_d.on_click(None)
-
-            enviar, args = tasks[-1]
-            await enviar(*args)
-            payload = json.loads(page._ws_aluno.send.call_args.args[0])
-            self.assertEqual(payload, {"tipo": "resposta", "indice": 1, "numero": 2})
+                enviar, args = tasks[-1]
+                await enviar(*args)
+                payload = json.loads(page._ws_aluno.send.call_args.args[0])
+                self.assertEqual(payload, {"tipo": "resposta", "indice": 1, "numero": 2})
+            finally:
+                if not running.done():
+                    running.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await running
 
         asyncio.run(cenario())
 
