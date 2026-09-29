@@ -43,6 +43,12 @@ class ArmazenamentoSessoesMemoria:
     def obter(self, codigo: str) -> Sessao | None:
         return self._sessoes.get(codigo)
 
+    def ativas_do_docente(self, id_docente: int) -> list[Sessao]:
+        return [
+            s for s in self._sessoes.values()
+            if s.id_docente == id_docente and s.status != "encerrada"
+        ]
+
     def remover(self, codigo: str) -> None:
         self._sessoes.pop(codigo, None)
 
