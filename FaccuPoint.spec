@@ -62,6 +62,7 @@ a = Analysis(
         'uvicorn.lifespan', 'uvicorn.lifespan.on',
         'fastapi',
         'webview', 'webview.platforms.winforms', 'webview.platforms.edgechromium',
+        'flet.fastapi',
     ],
     hookspath=[],
     hooksconfig={},
