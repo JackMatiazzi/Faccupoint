@@ -34,7 +34,7 @@ jobs:
             apt-get install -y -qq software-properties-common >/dev/null
             add-apt-repository -y ppa:deadsnakes/ppa >/dev/null
             apt-get update -qq >/dev/null
-            apt-get install -y -qq python3.12 python3.12-venv python3.12-dev >/dev/null
+            apt-get install -y -qq python3.12 python3.12-venv python3.12-dev binutils >/dev/null
 
             python3.12 -m ensurepip --upgrade
             python3.12 -m pip install --upgrade pip -q
