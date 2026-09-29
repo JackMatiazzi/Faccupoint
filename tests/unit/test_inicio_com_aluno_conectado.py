@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -35,6 +35,10 @@ class InicioComAlunoConectadoTest(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.docente = (20, "Professor", "prof@exemplo.test", "prof", False, "hash-atual")
         self.token = gerar_token_docente(20, self.docente[2], "prof", self.docente[5])
+        self.rodar_questao = AsyncMock()
+        tarefa = patch.object(rotas, "_rodar_questao", new=self.rodar_questao)
+        tarefa.start()
+        self.addCleanup(tarefa.stop)
 
     def _iniciar(self):
         with patch.object(rotas_http, "buscar_docente_por_id", return_value=self.docente):
@@ -50,6 +54,7 @@ class InicioComAlunoConectadoTest(unittest.TestCase):
 
         self.assertEqual(resposta.status_code, 400)
         self.assertEqual(self.sessao.status, "lobby")
+        self.rodar_questao.assert_not_called()
 
     def test_permite_iniciar_com_pelo_menos_um_aluno_conectado(self):
         self.sessao.participantes["Ana"] = rotas.Participante(apelido="Ana", ws=None)
@@ -59,6 +64,7 @@ class InicioComAlunoConectadoTest(unittest.TestCase):
 
         self.assertEqual(resposta.status_code, 200)
         self.assertEqual(self.sessao.status, "rodando")
+        self.rodar_questao.assert_awaited_once_with(self.codigo)
 
 
 if __name__ == "__main__":
