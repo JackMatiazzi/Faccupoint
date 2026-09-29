@@ -96,7 +96,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     quiz_midia_f = campo("Imagem ou vídeo para todas as perguntas (opcional)", prefix_icon=ft.Icons.IMAGE_OUTLINED)
     quiz_midia_preview = ft.Container(visible=False, padding=ft.padding.symmetric(vertical=G8))
     enunciado_f = campo("Enunciado da pergunta", multiline=True, min_lines=4, max_lines=6)
-    peso_f = campo("Peso da pergunta", value="1", suffix_text="ponto(s)", keyboard_type=ft.KeyboardType.NUMBER)
+    peso_f = campo("Peso da pergunta", value="1", suffix_text="ponto(s)", keyboard_type=ft.KeyboardType.TEXT)
     alternativas_col = ft.Column(spacing=G8)
     alternativas = []
     lista_perguntas = ft.Column(spacing=G8, scroll=ft.ScrollMode.AUTO)
