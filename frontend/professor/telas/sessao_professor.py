@@ -12,6 +12,7 @@ import qrcode
 import websockets
 
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
+from compartilhado.pontuacao import formatar_pontos
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
@@ -260,8 +261,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                     elif tipo == "questao_professor":
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
-                        peso = int(dados.get("peso", 1))
-                        questao_text.value = f"Questão {numero} de {total} · {peso} ponto{'s' if peso != 1 else ''}"
+                        peso = dados.get("peso", 1)
+                        questao_text.value = f"Questão {numero} de {total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}"
                         questao_text.visible = True
                         tempo_text.value = "0s decorridos"
                         tempo_text.visible = True
@@ -316,7 +317,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                                             size=FONT_CAPTION,
                                         ),
                                         ft.Text(
-                                            f"{item['pontos']} pt{'s' if item['pontos'] != 1 else ''}",
+                                            f"{formatar_pontos(item['pontos'])} pt{'s' if item['pontos'] != 1 else ''}",
                                             color=TEXT_SECONDARY,
                                             size=FONT_CAPTION,
                                         ),

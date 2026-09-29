@@ -51,3 +51,7 @@ class LauncherTest(unittest.TestCase):
                     self.assertIn("--run-aluno" if empacotado else "aluno.main", processos[-1][0])
                     self.assertEqual([api for _, api in processos], [esperada] * len(processos))
                     self.assertEqual(professor, [esperada])
+
+
+if __name__ == "__main__":
+    unittest.main()

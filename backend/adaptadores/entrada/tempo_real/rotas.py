@@ -1,3 +1,4 @@
+from decimal import Decimal
 
 import asyncio
 import json
@@ -109,7 +110,7 @@ async def _rodar_questao(codigo: str) -> None:
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": tempo,
         "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
-        "peso": int(pergunta.get("peso", 1)),
+        "peso": float(pergunta.get("peso", 1)),
     }
     await _broadcast_alunos(sessao, msg_questao)
     await _enviar_professor(sessao, {**msg_questao, "tipo": "questao_professor"})
@@ -141,7 +142,7 @@ async def _revelar_resultado(codigo: str) -> None:
     for p in sessao.participantes.values():
         acertou = p.resposta_atual in indices_corretos
         if acertou:
-            p.pontos += int(pergunta.get("peso", 1))
+            p.pontos = float(Decimal(str(p.pontos)) + Decimal(str(pergunta.get("peso", 1))))
         if p.resposta_atual is None and p.id_participante is not None:
             await asyncio.to_thread(
                 registrar_tentativa,
@@ -252,7 +253,7 @@ def _mensagem_questao_atual(sessao, participante: Participante) -> dict | None:
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": restante,
         "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
-        "peso": int(pergunta.get("peso", 1)),
+        "peso": float(pergunta.get("peso", 1)),
         "resposta_atual": participante.resposta_atual,
     }
 
@@ -429,16 +430,24 @@ async def ws_aluno(ws: WebSocket, codigo: str):
                 dados = json.loads(texto)
             except json.JSONDecodeError:
                 continue
-            if dados.get("tipo") == "resposta" and sessao.status == "rodando":
+            if (dados.get("tipo") == "resposta" and sessao.status == "rodando"
+                    and sessao.fase == "pergunta"):
+                numero = dados.get("numero")
+                if numero is not None and (type(numero) is not int or numero != sessao.questao_atual + 1):
+                    continue
+                if (sessao.questao_iniciada_em is None
+                        or time.monotonic() - sessao.questao_iniciada_em >= sessao.tempo_questao):
+                    continue
                 p = sessao.participantes.get(apelido)
                 if p and p.resposta_atual is None:
-                    try:
-                        indice = int(dados["indice"])
-                    except (KeyError, TypeError, ValueError):
+                    indice = dados.get("indice")
+                    if type(indice) is not int:
                         continue
                     pergunta = sessao.pergunta_atual()
                     alternativas = pergunta["alternativas"] if pergunta else []
-                    alternativa = alternativas[indice] if 0 <= indice < len(alternativas) else None
+                    if not 0 <= indice < len(alternativas):
+                        continue
+                    alternativa = alternativas[indice]
                     acertou = bool(alternativa and alternativa["correta"])
                     p.resposta_atual = indice
                     if p.id_participante is not None and pergunta:
@@ -448,6 +457,7 @@ async def ws_aluno(ws: WebSocket, codigo: str):
                             pergunta["id_pergunta"],
                             alternativa["id"] if alternativa else None,
                             acertou,
+                            pergunta.get("peso", 1),
                         )
                         logger.debug("sala %s: resposta de %s salva", codigo, apelido)
                     await _enviar_professor(sessao, {

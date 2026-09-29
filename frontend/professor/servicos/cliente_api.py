@@ -165,7 +165,7 @@ class Pergunta:
     ordem: int
     alternativas: list[Alternativa]
     link_midia: str | None = None
-    peso: int = 1
+    peso: float = 1
 
 
 def listar_quizzes_do_docente(id_docente: int) -> list[Quiz]:
@@ -217,11 +217,11 @@ def listar_perguntas(id_quiz: int) -> list[Pergunta]:
             Alternativa(id_alternativa=a["id"], texto=a["texto"], correta=a["correta"])
             for a in r.get("alternativas", [])
         ]
-        result.append(Pergunta(id_pergunta=r["id_pergunta"], enunciado=r["enunciado"], ordem=r["ordem"], alternativas=alts, link_midia=r.get("link_midia"), peso=int(r.get("peso", 1))))
+        result.append(Pergunta(id_pergunta=r["id_pergunta"], enunciado=r["enunciado"], ordem=r["ordem"], alternativas=alts, link_midia=r.get("link_midia"), peso=float(r.get("peso", 1))))
     return result
 
 
-def salvar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
+def salvar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: float = 1) -> None:
     _req("POST", f"/quizzes/{id_quiz}/perguntas", json={
         "enunciado": enunciado,
         "alternativas": alternativas,
@@ -230,7 +230,7 @@ def salvar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link
     })
 
 
-def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
+def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: float = 1) -> None:
     _req("PUT", f"/quizzes/{id_quiz}/perguntas/{id_pergunta}", json={
         "enunciado": enunciado,
         "alternativas": alternativas,

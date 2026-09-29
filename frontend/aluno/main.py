@@ -30,9 +30,6 @@ def main(page: ft.Page) -> None:
 
     page.sessao_codigo = query_valor(page, "codigo")
     page.sessao_apelido = ""
-    page.sessao_ip = "127.0.0.1"
-    page.sessao_porta = "8000"
-    page.sessao_api_secure = False
     page.sessao_token_reconexao = ""
     page._ws_queue = asyncio.Queue()
     page._rota_esperada = rota_inicial
