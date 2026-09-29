@@ -133,6 +133,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     participantes_col = ft.Column(spacing=8)
     respondidos_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION)
     etapa_text = ft.Text("Etapa 1 de 3: Selecionar quiz", size=FONT_CAPTION, color=TEXT_SECONDARY)
+    codigo_sidebar_text = ft.Text("", size=FONT_CAPTION, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD, visible=False)
     questao_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD, visible=False)
     tempo_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION, visible=False)
 
@@ -245,6 +246,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
 
         _codigo[0] = codigo
         codigo_text.value = codigo
+        codigo_sidebar_text.value = f"Código da sala: {codigo}"
+        codigo_sidebar_text.visible = True
         qr_image.src_base64 = qr_b64
         qr_image.visible = True
         _url_entrada[0] = url
@@ -493,6 +496,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             spacing=SPACE_MD,
             controls=[
                 etapa_text,
+                codigo_sidebar_text,
                 selector,
                 btn_criar,
                 btn_iniciar,
