@@ -7,7 +7,8 @@ import time
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from backend.dominio.pergunta import validar_peso
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +334,12 @@ class PerguntaEntrada(BaseModel):
     enunciado: str
     alternativas: list[AlternativaEntrada]
     link_midia: str | None = None
-    peso: int = 1
+    peso: float = 1
+
+    @field_validator("peso", mode="before")
+    @classmethod
+    def peso_decimal(cls, valor):
+        return float(validar_peso(valor))
 
 
 class CopiarQuizEntrada(BaseModel):

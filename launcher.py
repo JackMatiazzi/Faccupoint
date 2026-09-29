@@ -329,6 +329,7 @@ def _testar_pacote() -> None:
     import psutil
     from aluno.main import main as aluno_main
     from professor.main import main as professor_main
+    from professor.janela import abrir_janela
     from professor.telas.sessao_professor import _gerar_qrcode_b64
 
     png = base64.b64decode(_gerar_qrcode_b64("http://127.0.0.1:8081?codigo=TESTE"))
@@ -348,6 +349,7 @@ def main() -> None:
     _matar_flet_clientes()
     print("abrindo o faccupoint")
     api_url = os.getenv("API_URL", "https://faccupoint-backend.onrender.com")
+    os.environ["API_URL"] = api_url
     backend_remoto = not ("127.0.0.1" in api_url or "localhost" in api_url)
 
     if _verificar_atualizacao():
@@ -404,18 +406,16 @@ def main() -> None:
     if backend_remoto:
         _iniciar_keepalive(api_url, parar_keepalive)
 
-    os.environ["API_URL"] = api_url
-
     if not _FROZEN:
         os.chdir(str(ROOT / "frontend"))
         sys.path.insert(0, str(ROOT / "frontend"))
 
-    import flet as ft
     from professor.main import main as professor_main
+    from professor.janela import abrir_janela
 
     print("faccupoint aberto")
     try:
-        ft.app(target=professor_main, view=ft.AppView.FLET_APP)
+        abrir_janela(professor_main)
     except KeyboardInterrupt:
         pass
     finally:

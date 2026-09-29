@@ -1,3 +1,4 @@
+from compartilhado.pontuacao import ler_pontos, formatar_pontos
 
 import flet as ft
 from compartilhado.tema import botao_tema
@@ -493,7 +494,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
     def carregar_pergunta(pergunta):
         pergunta_atual[0] = pergunta.id_pergunta
         enunciado_f.value = pergunta.enunciado
-        peso_f.value = str(pergunta.peso)
+        peso_f.value = formatar_pontos(pergunta.peso)
         alternativas.clear()
         alternativas_col.controls.clear()
         for alt in pergunta.alternativas:
@@ -540,7 +541,7 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
                         ]),
                         ft.Row(wrap=True, spacing=G8, controls=[
                             _chip(f"{len(p.alternativas)} alts"),
-                            _chip(f"{p.peso} ponto{'s' if p.peso != 1 else ''}", ft.Icons.STAR_OUTLINE),
+                            _chip(f"{formatar_pontos(p.peso)} ponto{'s' if p.peso != 1 else ''}", ft.Icons.STAR_OUTLINE),
                             *[_chip(c) for c in corretas[:2]],
                         ]),
                     ]),
@@ -596,11 +597,9 @@ def tela_painel_professor(page: ft.Page) -> ft.View:
             page.update()
             return
         try:
-            peso = int(peso_f.value.strip())
-            if not 1 <= peso <= 100:
-                raise ValueError
-        except ValueError:
-            erro.value = "O peso deve ser um numero inteiro entre 1 e 100."
+            peso = ler_pontos(peso_f.value)
+        except ValueError as ex:
+            erro.value = str(ex)
             page.update()
             return
 

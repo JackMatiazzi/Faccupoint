@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 _MAX_URL_MIDIA = 2048
 _PRIVATE_PREFIXES = (
     "https://localhost",
@@ -26,13 +28,15 @@ def validar_link_midia(link: str | None) -> str | None:
     return url
 
 
-def validar_peso(peso: int) -> int:
+def validar_peso(peso) -> Decimal:
     try:
-        valor = int(peso)
-    except (TypeError, ValueError):
-        raise ValueError("Peso deve ser um numero inteiro entre 1 e 100.")
-    if not 1 <= valor <= 100:
-        raise ValueError("Peso deve estar entre 1 e 100.")
+        valor = Decimal(str(peso).replace(",", "."))
+        if not valor.is_finite() or not Decimal("0.01") <= valor <= 100:
+            raise ValueError
+        if valor != valor.quantize(Decimal("0.01")):
+            raise ValueError
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError("Peso deve estar entre 0,01 e 100, com no máximo duas casas decimais.") from None
     return valor
 
 

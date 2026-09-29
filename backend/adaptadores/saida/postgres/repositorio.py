@@ -226,6 +226,18 @@ def migrar_schema() -> None:
         with conn.cursor() as cur:
             cur.execute("ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS link_midia VARCHAR")
             cur.execute("ALTER TABLE perguntas ADD COLUMN IF NOT EXISTS peso INTEGER NOT NULL DEFAULT 1")
+            cur.execute("""
+                DO $$ BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = current_schema() AND table_name = 'perguntas'
+                          AND column_name = 'peso' AND data_type = 'integer'
+                    ) THEN
+                        ALTER TABLE perguntas ALTER COLUMN peso TYPE NUMERIC(5,2) USING peso::numeric;
+                    END IF;
+                END $$
+            """)
+            cur.execute("ALTER TABLE tentativas ADD COLUMN IF NOT EXISTS pontos NUMERIC(5,2)")
             cur.execute(
                 "ALTER TABLE docentes ADD COLUMN IF NOT EXISTS "
                 "precisa_trocar_pin BOOLEAN NOT NULL DEFAULT FALSE"
@@ -453,7 +465,9 @@ def registrar_tentativa(
     id_pergunta: int,
     id_alternativa: int | None,
     acertou: bool,
+    peso=1,
 ) -> None:
+    pontos = validar_peso(peso) if acertou else 0
     conn = _conectar()
     try:
         with conn.cursor() as cur:
@@ -461,11 +475,11 @@ def registrar_tentativa(
                 """
                 INSERT INTO tentativas (
                     id_participante, id_pergunta, id_alternativa_escolhida,
-                    acertou, registrada_em
+                    acertou, registrada_em, pontos
                 )
-                VALUES (%s, %s, %s, %s, timezone(%s, now()))
+                VALUES (%s, %s, %s, %s, timezone(%s, now()), %s)
                 """,
-                (id_participante, id_pergunta, id_alternativa, acertou, FUSO_HORARIO),
+                (id_participante, id_pergunta, id_alternativa, acertou, FUSO_HORARIO, pontos),
             )
         conn.commit()
     finally:
@@ -499,7 +513,9 @@ def buscar_relatorio_sessao(id_sessao: int) -> dict | None:
                     alt.texto,
                     corretas.texto,
                     t.acertou,
-                    t.registrada_em
+                    t.registrada_em,
+                    COALESCE(t.pontos, CASE WHEN t.acertou THEN COALESCE(per.peso, 1) ELSE 0 END),
+                    p.id_participante
                 FROM participantes p
                 LEFT JOIN tentativas t ON t.id_participante = p.id_participante
                 LEFT JOIN perguntas per ON per.id_pergunta = t.id_pergunta
@@ -524,6 +540,8 @@ def buscar_relatorio_sessao(id_sessao: int) -> dict | None:
                     "correta": r[4],
                     "acertou": r[5],
                     "respondida_em": r[6],
+                    "pontos": r[7],
+                    "id_participante": r[8],
                 }
                 for r in cur.fetchall()
             ]
@@ -625,7 +643,7 @@ def listar_perguntas_do_quiz(id_quiz: int) -> list[dict]:
                     "enunciado": row[1],
                     "ordem": row[2],
                     "link_midia": row[3],
-                    "peso": int(row[4] or 1),
+                    "peso": float(row[4] if row[4] is not None else 1),
                     "alternativas": [],
                 })
                 if row[5] is not None:
@@ -649,7 +667,7 @@ def _inserir_alternativas(cur, id_pergunta: int, alternativas: list[dict]) -> No
     )
 
 
-def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
+def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: float = 1) -> None:
     enunciado, alternativas_limpas, midia = normalizar_pergunta(
         enunciado, alternativas, link_midia
     )
@@ -670,7 +688,7 @@ def atualizar_pergunta(id_quiz: int, id_pergunta: int, enunciado: str, alternati
         conn.close()
 
 
-def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: int = 1) -> None:
+def cadastrar_pergunta(id_quiz: int, enunciado: str, alternativas: list[dict], link_midia: str | None = None, peso: float = 1) -> None:
     enunciado, alternativas_limpas, midia = normalizar_pergunta(
         enunciado, alternativas, link_midia
     )
