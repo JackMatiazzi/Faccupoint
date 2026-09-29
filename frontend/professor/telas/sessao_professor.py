@@ -13,6 +13,7 @@ import qrcode
 import websockets
 
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
+from compartilhado.pontuacao import formatar_pontos
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION,
@@ -146,6 +147,11 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             return None
         video_id = id_video_youtube(url)
         if video_id:
+            if page.web:
+                return ft.WebView(
+                    url=f"https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&rel=0&playsinline=1",
+                    height=360, enable_javascript=True,
+                )
             thumbnail = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
             return ft.Column(
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -299,8 +305,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         andamento_sala.visible = True
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
-                        peso = int(dados.get("peso", 1))
-                        questao_text.value = f"Questão {numero} de {total} · {peso} ponto{'s' if peso != 1 else ''}"
+                        peso = dados.get("peso", 1)
+                        questao_text.value = f"Questão {numero} de {total} · {formatar_pontos(peso)} ponto{'s' if peso != 1 else ''}"
                         questao_text.visible = True
                         tempo_text.value = "0s decorridos"
                         tempo_text.visible = True
@@ -361,7 +367,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                                             size=FONT_CAPTION,
                                         ),
                                         ft.Text(
-                                            f"{item['pontos']} pt{'s' if item['pontos'] != 1 else ''}",
+                                            f"{formatar_pontos(item['pontos'])} pt{'s' if item['pontos'] != 1 else ''}",
                                             color=TEXT_SECONDARY,
                                             size=FONT_CAPTION,
                                         ),

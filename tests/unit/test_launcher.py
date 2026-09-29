@@ -26,6 +26,8 @@ class LauncherTest(unittest.TestCase):
                     ft.app = lambda **kwargs: professor.append(os.environ.get("API_URL"))
                     tela = ModuleType("professor.main")
                     tela.main = Mock()
+                    janela = ModuleType("professor.janela")
+                    janela.abrir_janela = lambda target: professor.append(os.environ.get("API_URL"))
 
                     with ExitStack() as stack:
                         stack.enter_context(patch.dict(os.environ))
@@ -35,7 +37,7 @@ class LauncherTest(unittest.TestCase):
                         stack.enter_context(patch.object(launcher, "_FROZEN", empacotado))
                         stack.enter_context(patch.object(sys, "argv", ["launcher.py"]))
                         stack.enter_context(patch.object(sys, "path", sys.path.copy()))
-                        stack.enter_context(patch.dict(sys.modules, {"flet": ft, "professor.main": tela}))
+                        stack.enter_context(patch.dict(sys.modules, {"flet": ft, "professor.main": tela, "professor.janela": janela}))
                         for nome in ("_matar_flet_clientes", "_matar_porta", "_matar", "_aguardar_backend", "_iniciar_keepalive"):
                             stack.enter_context(patch.object(launcher, nome))
                         stack.enter_context(patch.object(launcher, "_verificar_atualizacao", return_value=False))

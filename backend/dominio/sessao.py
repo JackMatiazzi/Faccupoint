@@ -10,7 +10,7 @@ class Participante:
     ws: Any
     id_participante: int | None = None
     token_reconexao: str = ""
-    pontos: int = 0
+    pontos: float = 0
     resposta_atual: int | None = None
 
 

@@ -13,6 +13,7 @@ from backend.adaptadores.entrada.http.rotas import router
 from backend.adaptadores.entrada.tempo_real.rotas import router as router_sessao
 from backend.adaptadores.saida.postgres.repositorio import migrar_schema
 from backend.infraestrutura.configuracao import load_environment
+from backend.infraestrutura.limites import LimitesMiddleware
 
 load_environment()
 
@@ -45,12 +46,13 @@ def create_app(*, run_migrations: bool = True) -> FastAPI:
             await asyncio.to_thread(migrar_schema)
         yield
 
-    desabilitar_docs = os.getenv("DISABLE_DOCS", "0") == "1"
+    desabilitar_docs = os.getenv("DISABLE_DOCS", "1") != "0"
     application = FastAPI(
         title="Faccupoint API",
         version=_versao_app(),
         docs_url=None if desabilitar_docs else "/docs",
         redoc_url=None if desabilitar_docs else "/redoc",
+        openapi_url=None if desabilitar_docs else "/openapi.json",
         lifespan=lifespan,
     )
 
@@ -69,6 +71,8 @@ def create_app(*, run_migrations: bool = True) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
+
+    application.add_middleware(LimitesMiddleware)
 
     application.include_router(router)
     application.include_router(router_sessao)
@@ -97,4 +101,5 @@ if __name__ == "__main__":
         reload=os.getenv("API_RELOAD", "0") == "1",
         log_level=os.getenv("API_LOG_LEVEL", "warning"),
         access_log=False,
+        proxy_headers=False,
     )

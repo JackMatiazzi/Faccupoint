@@ -1,3 +1,4 @@
+from decimal import Decimal
 
 import asyncio
 import json
@@ -30,7 +31,7 @@ from backend.aplicacao.servicos.sessoes import (
 )
 from backend.dominio.sessao import Participante
 from backend.infraestrutura.configuracao import load_environment
-from backend.infraestrutura.seguranca import verificar_token_docente
+from backend.infraestrutura.seguranca import fingerprint_pin, verificar_token_docente
 
 load_environment()
 router = APIRouter()
@@ -52,29 +53,59 @@ class CriarSessaoEntrada(BaseModel):
 
 
 async def _broadcast_alunos(sessao, mensagem: dict) -> None:
-    mortos = []
-    for apelido, p in sessao.participantes.items():
-        if p.ws is None:
+    for apelido, p in list(sessao.participantes.items()):
+        ws = p.ws
+        if ws is None:
             continue
         try:
-            await p.ws.send_json(mensagem)
+            await ws.send_json(mensagem)
         except WebSocketDisconnect:
             logger.info("aluno %s desconectou", apelido)
-            p.ws = None
+            if p.ws is ws:
+                p.ws = None
         except Exception:
             logger.exception("falha ao enviar mensagem para aluno %s", apelido)
-            p.ws = None
+            if p.ws is ws:
+                p.ws = None
+
+
+async def _fechar_socket(ws, code=4008) -> None:
+    try:
+        await ws.close(code=code)
+    except Exception:
+        pass
+
+
+async def _professor_autorizado(ws, sessao) -> bool:
+    payload = verificar_token_docente(getattr(ws, "_faccupoint_token", ""))
+    if payload is None or payload.get("id_docente") != sessao.id_docente:
+        return False
+    try:
+        docente = await asyncio.wait_for(
+            asyncio.to_thread(buscar_docente_por_id, sessao.id_docente), timeout=3.0
+        )
+    except Exception:
+        logger.exception("falha ao revalidar professor")
+        return False
+    return bool(docente and not docente[4]
+                and payload.get("pv") == fingerprint_pin(docente[5]))
 
 
 async def _enviar_professor(sessao, mensagem: dict) -> None:
-    if sessao.professor_ws:
-        try:
-            await sessao.professor_ws.send_json(mensagem)
-        except WebSocketDisconnect:
-            logger.info("professor desconectou da sala %s", sessao.codigo)
-            sessao.professor_ws = None
-        except Exception:
-            logger.exception("falha ao enviar mensagem para o professor da sala %s", sessao.codigo)
+    ws = sessao.professor_ws
+    if ws is None:
+        return
+    try:
+        if not await _professor_autorizado(ws, sessao):
+            await _fechar_socket(ws)
+            if sessao.professor_ws is ws:
+                sessao.professor_ws = None
+            return
+        if sessao.professor_ws is ws:
+            await ws.send_json(mensagem)
+    except Exception:
+        logger.exception("falha ao enviar mensagem para o professor da sala %s", sessao.codigo)
+        if sessao.professor_ws is ws:
             sessao.professor_ws = None
 
 
@@ -109,7 +140,7 @@ async def _rodar_questao(codigo: str) -> None:
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": tempo,
         "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
-        "peso": int(pergunta.get("peso", 1)),
+        "peso": float(pergunta.get("peso", 1)),
     }
     await _broadcast_alunos(sessao, msg_questao)
     await _enviar_professor(sessao, {**msg_questao, "tipo": "questao_professor"})
@@ -141,7 +172,7 @@ async def _revelar_resultado(codigo: str) -> None:
     for p in sessao.participantes.values():
         acertou = p.resposta_atual in indices_corretos
         if acertou:
-            p.pontos += int(pergunta.get("peso", 1))
+            p.pontos = float(Decimal(str(p.pontos)) + Decimal(str(pergunta.get("peso", 1))))
         if p.resposta_atual is None and p.id_participante is not None:
             await asyncio.to_thread(
                 registrar_tentativa,
@@ -164,26 +195,20 @@ async def _revelar_resultado(codigo: str) -> None:
     sessao.ultimo_resultado = resultado
     mortos = []
     for p in sessao.participantes.values():
-        if p.ws is None:
+        ws = p.ws
+        if ws is None:
             continue
-        respondeu = p.resposta_atual is not None
-        payload_aluno = {
-            **resultado,
-            "sua_resposta": p.resposta_atual,
-            "acertou": p.resposta_atual in indices_corretos,
-            "pontos": p.pontos,
-        }
-        if not respondeu:
-            payload_aluno.pop("indice_correto", None)
-            payload_aluno.pop("indices_corretos", None)
+        payload_aluno = _resultado_aluno(resultado, p)
         try:
-            await p.ws.send_json(payload_aluno)
+            await ws.send_json(payload_aluno)
         except WebSocketDisconnect:
             logger.info("aluno %s desconectou antes de receber o resultado", p.apelido)
-            p.ws = None
+            if p.ws is ws:
+                p.ws = None
         except Exception:
             logger.exception("falha ao enviar resultado para aluno %s", p.apelido)
-            p.ws = None
+            if p.ws is ws:
+                p.ws = None
     await _enviar_professor(sessao, {
         **resultado,
         "tipo": "resultado_professor",
@@ -252,9 +277,23 @@ def _mensagem_questao_atual(sessao, participante: Participante) -> dict | None:
         "alternativas": [a["texto"] for a in pergunta["alternativas"]],
         "tempo": restante,
         "link_midia": sessao.quiz_link_midia or pergunta.get("link_midia"),
-        "peso": int(pergunta.get("peso", 1)),
+        "peso": float(pergunta.get("peso", 1)),
         "resposta_atual": participante.resposta_atual,
     }
+
+
+def _resultado_aluno(resultado: dict, participante: Participante) -> dict:
+    mensagem = {
+        **resultado,
+        "tipo": "resultado",
+        "sua_resposta": participante.resposta_atual,
+        "acertou": participante.resposta_atual in resultado.get("indices_corretos", []),
+        "pontos": participante.pontos,
+    }
+    if participante.resposta_atual is None:
+        mensagem.pop("indice_correto", None)
+        mensagem.pop("indices_corretos", None)
+    return mensagem
 
 
 async def _restaurar_estado_aluno(ws: WebSocket, sessao, participante: Participante) -> None:
@@ -265,7 +304,7 @@ async def _restaurar_estado_aluno(ws: WebSocket, sessao, participante: Participa
         mensagem = _mensagem_questao_atual(sessao, participante)
         if mensagem:
             await ws.send_json(mensagem)
-        await ws.send_json({**sessao.ultimo_resultado, "tipo": "resultado", "sua_resposta": participante.resposta_atual, "acertou": participante.resposta_atual in sessao.ultimo_resultado.get("indices_corretos", []), "pontos": participante.pontos})
+        await ws.send_json(_resultado_aluno(sessao.ultimo_resultado, participante))
     elif sessao.status == "rodando":
         mensagem = _mensagem_questao_atual(sessao, participante)
         if mensagem:
@@ -344,7 +383,10 @@ async def ws_professor(ws: WebSocket, codigo: str):
         await ws.close(code=4008)
         return
 
-    token = dados_auth.get("token", "")
+    if not isinstance(dados_auth, dict) or not isinstance(dados_auth.get("token"), str):
+        await ws.close(code=4008)
+        return
+    token = dados_auth["token"]
     payload = verificar_token_docente(token)
     if payload is None:
         await ws.send_json({"tipo": "erro", "mensagem": "sessao invalida"})
@@ -356,19 +398,37 @@ async def ws_professor(ws: WebSocket, codigo: str):
         await ws.close(code=4008)
         return
     docente = await asyncio.to_thread(buscar_docente_por_id, id_docente)
-    if docente is None:
+    if (docente is None or docente[4]
+            or payload.get("pv") != fingerprint_pin(docente[5])):
         await ws.close(code=4008)
         return
     sessao = obter_sessao(codigo)
     if not sessao or id_docente != sessao.id_docente:
         await ws.close(code=4003)
         return
+    ws._faccupoint_token = token
+    antigo = sessao.professor_ws
     sessao.professor_ws = ws
-    await ws.send_json({"tipo": "conectado", "codigo": codigo})
+    if antigo is not None and antigo is not ws:
+        await _fechar_socket(antigo)
     try:
-        while True:
-            await ws.receive_text()
+        await _enviar_professor(sessao, {"tipo": "conectado", "codigo": codigo})
+        if sessao.status == "lobby":
+            await _enviar_professor(sessao, {
+                "tipo": "lobby",
+                "participantes": [nome for nome, p in sessao.participantes.items() if p.ws is not None],
+            })
+        while sessao.professor_ws is ws:
+            try:
+                await asyncio.wait_for(ws.receive_text(), timeout=5.0)
+            except asyncio.TimeoutError:
+                pass
+            if not await _professor_autorizado(ws, sessao):
+                await _fechar_socket(ws)
+                return
     except WebSocketDisconnect:
+        pass
+    finally:
         if sessao.professor_ws is ws:
             sessao.professor_ws = None
 
@@ -385,6 +445,7 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     await ws.accept()
     apelido = None
     participante = None
+    socket_anterior = None
     try:
         try:
             raw = await asyncio.wait_for(ws.receive_text(), timeout=15.0)
@@ -393,34 +454,45 @@ async def ws_aluno(ws: WebSocket, codigo: str):
             await ws.send_json({"tipo": "erro", "mensagem": "mensagem invalida"})
             await ws.close()
             return
+        if (not isinstance(dados, dict)
+                or not isinstance(dados.get("apelido"), str)
+                or not isinstance(dados.get("token_reconexao", ""), str)):
+            await ws.send_json({"tipo": "erro", "mensagem": "mensagem invalida"})
+            await ws.close()
+            return
         apelido = re.sub(r"[^\w\s\-]", "", dados.get("apelido", ""), flags=re.UNICODE).strip()[:20]
-        token_recebido = str(dados.get("token_reconexao", ""))
-        existente = sessao.participantes.get(apelido)
-        if existente and token_recebido and secrets.compare_digest(existente.token_reconexao, token_recebido):
-            participante = existente
-            participante.ws = ws
-            logger.info("sala %s: %s reconectou", codigo, apelido)
-        else:
-            if sessao.status != "lobby":
-                await ws.send_json({"tipo": "erro", "mensagem": "quiz em andamento ou ja encerrado"})
-                await ws.close()
-                return
-            if not apelido or existente:
-                await ws.send_json({"tipo": "erro", "mensagem": "apelido invalido ou ja em uso"})
-                await ws.close()
-                return
-            if len(sessao.participantes) >= _MAX_PARTICIPANTES:
-                await ws.send_json({"tipo": "erro", "mensagem": "sala lotada"})
-                await ws.close()
-                return
-            id_participante = await asyncio.to_thread(registrar_participante_sessao, sessao.id_sessao, apelido)
-            participante = Participante(apelido=apelido, ws=ws, id_participante=id_participante, token_reconexao=secrets.token_urlsafe(32))
-            sessao.participantes[apelido] = participante
-            logger.info("sala %s: %s entrou", codigo, apelido)
+        token_recebido = dados.get("token_reconexao", "")
+        async with sessao._lock:
+            existente = sessao.participantes.get(apelido)
+            if existente and token_recebido and secrets.compare_digest(existente.token_reconexao.encode("utf-8"), token_recebido.encode("utf-8")):
+                participante = existente
+                socket_anterior = participante.ws
+                participante.ws = ws
+                logger.info("sala %s: %s reconectou", codigo, apelido)
+            else:
+                if sessao.status != "lobby":
+                    await ws.send_json({"tipo": "erro", "mensagem": "quiz em andamento ou ja encerrado"})
+                    await ws.close()
+                    return
+                if not apelido or existente:
+                    await ws.send_json({"tipo": "erro", "mensagem": "apelido invalido ou ja em uso"})
+                    await ws.close()
+                    return
+                if len(sessao.participantes) >= _MAX_PARTICIPANTES:
+                    await ws.send_json({"tipo": "erro", "mensagem": "sala lotada"})
+                    await ws.close()
+                    return
+                id_participante = await asyncio.to_thread(registrar_participante_sessao, sessao.id_sessao, apelido)
+                participante = Participante(apelido=apelido, ws=ws, id_participante=id_participante, token_reconexao=secrets.token_urlsafe(32))
+                sessao.participantes[apelido] = participante
+                logger.info("sala %s: %s entrou", codigo, apelido)
+
+        if socket_anterior is not None and socket_anterior is not ws:
+            await _fechar_socket(socket_anterior)
 
         await ws.send_json({"tipo": "identificado", "token_reconexao": participante.token_reconexao})
         await _restaurar_estado_aluno(ws, sessao, participante)
-        lista = list(sessao.participantes.keys())
+        lista = [nome for nome, p in sessao.participantes.items() if p.ws is not None]
         await _broadcast_alunos(sessao, {"tipo": "lobby", "participantes": lista})
         await _enviar_professor(sessao, {"tipo": "lobby", "participantes": lista})
 
@@ -430,16 +502,26 @@ async def ws_aluno(ws: WebSocket, codigo: str):
                 dados = json.loads(texto)
             except json.JSONDecodeError:
                 continue
-            if dados.get("tipo") == "resposta" and sessao.status == "rodando":
+            if not isinstance(dados, dict):
+                continue
+            if (dados.get("tipo") == "resposta" and sessao.status == "rodando"
+                    and sessao.fase == "pergunta"):
+                numero = dados.get("numero")
+                if numero is not None and (type(numero) is not int or numero != sessao.questao_atual + 1):
+                    continue
+                if (sessao.questao_iniciada_em is None
+                        or time.monotonic() - sessao.questao_iniciada_em >= sessao.tempo_questao):
+                    continue
                 p = sessao.participantes.get(apelido)
-                if p and p.resposta_atual is None:
-                    try:
-                        indice = int(dados["indice"])
-                    except (KeyError, TypeError, ValueError):
+                if p and p.ws is ws and p.resposta_atual is None:
+                    indice = dados.get("indice")
+                    if type(indice) is not int:
                         continue
                     pergunta = sessao.pergunta_atual()
                     alternativas = pergunta["alternativas"] if pergunta else []
-                    alternativa = alternativas[indice] if 0 <= indice < len(alternativas) else None
+                    if not 0 <= indice < len(alternativas):
+                        continue
+                    alternativa = alternativas[indice]
                     acertou = bool(alternativa and alternativa["correta"])
                     p.resposta_atual = indice
                     if p.id_participante is not None and pergunta:
@@ -449,6 +531,7 @@ async def ws_aluno(ws: WebSocket, codigo: str):
                             pergunta["id_pergunta"],
                             alternativa["id"] if alternativa else None,
                             acertou,
+                            pergunta.get("peso", 1),
                         )
                         logger.debug("sala %s: resposta de %s salva", codigo, apelido)
                     await _enviar_professor(sessao, {
@@ -462,6 +545,6 @@ async def ws_aluno(ws: WebSocket, codigo: str):
     finally:
         if participante and participante.ws is ws:
             participante.ws = None
-            lista = list(sessao.participantes.keys())
+            lista = [nome for nome, p in sessao.participantes.items() if p.ws is not None]
             await _broadcast_alunos(sessao, {"tipo": "lobby", "participantes": lista})
             await _enviar_professor(sessao, {"tipo": "lobby", "participantes": lista})

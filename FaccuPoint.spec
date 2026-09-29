@@ -61,6 +61,8 @@ a = Analysis(
         'uvicorn.protocols.websockets', 'uvicorn.protocols.websockets.auto',
         'uvicorn.lifespan', 'uvicorn.lifespan.on',
         'fastapi',
+        'webview', 'webview.platforms.winforms', 'webview.platforms.edgechromium',
+        'flet.fastapi',
     ],
     hookspath=[],
     hooksconfig={},

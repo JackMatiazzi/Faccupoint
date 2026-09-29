@@ -1,0 +1,11 @@
+Package: faccupoint
+Version: __VERSION__
+Section: education
+Priority: optional
+Architecture: amd64
+Depends: libgtk-3-0
+Maintainer: JackMatiazzi <JackMatiazzi@users.noreply.github.com>
+Homepage: https://github.com/JackMatiazzi/Faccupoint
+Description: Quizzes ao vivo em sala de aula
+ FaccuPoint permite que professores criem quizzes ao vivo para que
+ alunos respondam em tempo real durante a aula.
