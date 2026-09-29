@@ -7,7 +7,26 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "frontend"))
+import flet as ft
 from aluno.telas import questao
+
+
+def _encontrar_botao(controle, texto):
+    # Procura por texto em vez de indice fixo: fix/video-continuo-aluno (outra
+    # branch, independente) reestrutura a arvore de widgets desta mesma tela;
+    # navegar por posicao quebraria a cada reconciliacao de merge sem precisar.
+    if isinstance(controle, ft.ElevatedButton) and controle.text == texto:
+        return controle
+    for atributo in ("controls", "content"):
+        valor = getattr(controle, atributo, None)
+        if valor is None:
+            continue
+        alvo = valor if isinstance(valor, (list, tuple)) else [valor]
+        for filho in alvo:
+            achado = _encontrar_botao(filho, texto)
+            if achado is not None:
+                return achado
+    return None
 
 
 class NumeroAposTrocarPerguntaTest(unittest.TestCase):
@@ -37,10 +56,9 @@ class NumeroAposTrocarPerguntaTest(unittest.TestCase):
             await asyncio.sleep(0)
             self.assertTrue(running.done())
 
-            nova_view = page.views[-1]
-            botoes = nova_view.controls[0].controls[3].content.controls
-            botao_indice_1 = botoes[3]
-            botao_indice_1.on_click(None)
+            botao_d = _encontrar_botao(page.views[-1], "D")
+            self.assertIsNotNone(botao_d, "botao da alternativa 'D' nao encontrado na view renderizada")
+            botao_d.on_click(None)
 
             enviar, args = tasks[-1]
             await enviar(*args)
