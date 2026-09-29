@@ -28,8 +28,9 @@ class VideoContinuoTest(unittest.TestCase):
                 page.views.append(view)
                 content = view.controls[0].controls[3].content
                 media = content.controls[2]
-                # Video nunca deve virar WebView pro aluno: so um aviso de texto.
-                self.assertIsInstance(media.content, ft.Text)
+                # Video nunca aparece pro aluno: sem WebView, sem aviso, container escondido.
+                self.assertIsNone(media.content)
+                self.assertFalse(media.visible)
                 consumer = next(fn for fn, args in tasks if fn.__name__ == "aguardar_resultado")
                 running = asyncio.create_task(consumer())
                 await page._ws_queue.put({"tipo": "questao", "numero": 2, "total": 3,
@@ -37,7 +38,8 @@ class VideoContinuoTest(unittest.TestCase):
                     "link_midia": "https://www.youtube.com/watch?v=abcdefghijk"})
                 await asyncio.sleep(0)
                 self.assertIs(page.views[0], view)
-                self.assertIsInstance(media.content, ft.Text)
+                self.assertIsNone(media.content)
+                self.assertFalse(media.visible)
                 self.assertEqual(player.call_count, 0)
                 self.assertEqual(content.controls[0].content.value, "Segunda")
                 self.assertEqual(len(content.controls[3].controls), 3)
@@ -54,7 +56,8 @@ class VideoContinuoTest(unittest.TestCase):
                     "tempo": 15, "enunciado": "Terceira", "alternativas": ["F", "G"],
                     "link_midia": "https://youtu.be/lmnopqrstuv"})
                 await asyncio.sleep(0)
-                self.assertIsInstance(media.content, ft.Text)
+                self.assertIsNone(media.content)
+                self.assertFalse(media.visible)
                 self.assertEqual(player.call_count, 0)
                 self.assertFalse(content.controls[3].controls[0].disabled)
                 with patch.object(questao, "ir_para") as navigate:

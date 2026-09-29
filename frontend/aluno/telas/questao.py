@@ -32,10 +32,7 @@ def tela_questao(page: ft.Page) -> ft.View:
         if not url:
             return None
         if id_video_youtube(url):
-            return ft.Text(
-                "Vídeo sendo exibido no telão do professor",
-                size=FONT_CAPTION, color=TEXT_SECONDARY, text_align=ft.TextAlign.CENTER,
-            )
+            return None
         if eh_imagem(url):
             return ft.Image(src=url, height=200, fit=ft.ImageFit.CONTAIN, border_radius=CARD_RADIUS)
         return ft.ElevatedButton(
@@ -188,7 +185,8 @@ def tela_questao(page: ft.Page) -> ft.View:
         feedback.value = "Resposta enviada. Aguardando o resultado..."
         feedback.color = TEXT_SECONDARY
 
-    media_container = ft.Container(content=_render_media(link_midia), visible=bool(link_midia))
+    _midia_inicial = _render_media(link_midia)
+    media_container = ft.Container(content=_midia_inicial, visible=_midia_inicial is not None)
     alternativas_col = ft.Column(controls=botoes, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
     cabecalho = ft.Text(size=FONT_CAPTION, color=TEXT_SECONDARY)
     enunciado_text = ft.Text(enunciado, size=FONT_SUBHEADING, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER)
@@ -225,8 +223,9 @@ def tela_questao(page: ft.Page) -> ft.View:
             feedback.value = "Resposta enviada. Aguardando o resultado..."
         nova_midia = novos_dados.get("link_midia")
         if chave_midia(nova_midia) != chave_midia(link_midia):
-            media_container.content = _render_media(nova_midia)
-            media_container.visible = bool(nova_midia)
+            conteudo = _render_media(nova_midia)
+            media_container.content = conteudo
+            media_container.visible = conteudo is not None
         link_midia = nova_midia
         page.update()
         page.run_task(countdown, questao_token, tempo_total)
