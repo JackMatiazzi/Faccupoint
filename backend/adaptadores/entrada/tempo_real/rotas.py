@@ -315,11 +315,14 @@ async def _restaurar_estado_aluno(ws: WebSocket, sessao, participante: Participa
 
 @router.post("/sessoes", tags=["sessao"])
 async def criar(corpo: CriarSessaoEntrada, atual: dict = Depends(docente_atual)):
+    id_docente_atual = int(atual["id_docente"])
+    for antiga in armazenamento_sessoes_ativas.ativas_do_docente(id_docente_atual):
+        await _encerrar(antiga.codigo)
     try:
         codigo = await asyncio.to_thread(
             abrir_sessao.executar,
             corpo.id_quiz,
-            int(atual["id_docente"]),
+            id_docente_atual,
             corpo.id_docente_anfitriao,
         )
     except QuizSemPerguntas as exc:
