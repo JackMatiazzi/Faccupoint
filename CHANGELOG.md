@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.2...v1.5.0) (2026-10-01)
+
+
+### Features
+
+* **sessao:** podio final em destaque e feedback visual de resposta ([9b938fb](https://github.com/JackMatiazzi/Faccupoint/commit/9b938fbb44bbcff0b0f8cb3e5dbf5a52ce7a0dec))
+* **sessao:** podio final em destaque e feedback visual de resposta ([55d4ead](https://github.com/JackMatiazzi/Faccupoint/commit/55d4eada1664be52a5fcfb37f53aa60c7c701f40))
+
+
+### Bug Fixes
+
+* **linux:** declara libmpv2 e cria link de compatibilidade no .deb ([f39cfbf](https://github.com/JackMatiazzi/Faccupoint/commit/f39cfbf3fa938da6d7112f502af9a8032ded0be8))
+* **linux:** declara libmpv2 e cria link de compatibilidade no .deb ([61e1aa6](https://github.com/JackMatiazzi/Faccupoint/commit/61e1aa60700e4cf51ebf6ea69d5b1c91b3fa63fb))
+
 ## [1.4.2](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.1...v1.4.2) (2026-09-29)
 
 
