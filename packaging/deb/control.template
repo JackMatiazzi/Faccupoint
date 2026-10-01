@@ -3,7 +3,7 @@ Version: __VERSION__
 Section: education
 Priority: optional
 Architecture: amd64
-Depends: libgtk-3-0
+Depends: libgtk-3-0, libmpv2
 Maintainer: JackMatiazzi <JackMatiazzi@users.noreply.github.com>
 Homepage: https://github.com/JackMatiazzi/Faccupoint
 Description: Quizzes ao vivo em sala de aula

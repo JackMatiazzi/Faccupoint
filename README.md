@@ -82,6 +82,19 @@ o player anterior. A reprodução automática começa sem som; o usuário pode
 ativar o áudio no próprio player.
 
 
+## Instalação no Linux
+
+O executável depende da `libmpv` para reprodução de mídia. Instalando o
+`.deb` (`sudo apt install ./faccupoint_<versão>_amd64.deb`), a dependência e
+o link de compatibilidade são resolvidos automaticamente. Usando o AppImage
+ou o tarball diretamente, instale a lib e crie o link manualmente antes de
+abrir o aplicativo:
+
+```bash
+sudo apt install libmpv2
+sudo ln -s "$(find /usr/lib -name 'libmpv.so.*' | sort -V | tail -n1)" /usr/lib/libmpv.so.1
+```
+
 ## Testes
 
 Na raiz do projeto:

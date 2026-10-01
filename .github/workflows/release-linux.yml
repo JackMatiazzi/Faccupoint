@@ -94,6 +94,9 @@ jobs:
 
           sed "s/__VERSION__/$version/" packaging/deb/control.template > "$PKGDIR/DEBIAN/control"
 
+          cp packaging/deb/postinst "$PKGDIR/DEBIAN/postinst"
+          chmod 0755 "$PKGDIR/DEBIAN/postinst"
+
           cp dist/FaccuPoint "$PKGDIR/usr/bin/FaccuPoint"
           chmod +x "$PKGDIR/usr/bin/FaccuPoint"
 
