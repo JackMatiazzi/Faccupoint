@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+if [ ! -e /usr/lib/libmpv.so.1 ]; then
+    LIBMPV_REAL=$(find /usr/lib -name 'libmpv.so.*' 2>/dev/null | sort -V | tail -n1 || true)
+    if [ -n "$LIBMPV_REAL" ]; then
+        ln -sf "$LIBMPV_REAL" /usr/lib/libmpv.so.1
+        ldconfig || true
+    fi
+fi
+
+exit 0
