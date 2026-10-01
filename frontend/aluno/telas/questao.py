@@ -11,7 +11,7 @@ from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_GREEN_TEXT, BTN_QUESTAO_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CORES_ALTERNATIVAS,
     FONT_CAPTION, FONT_SUBHEADING, SPACE_MD, TEXT_DANGER,
-    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT,
+    TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT, TEXT_SUCCESS,
 )
 
 
@@ -90,10 +90,11 @@ def tela_questao(page: ft.Page) -> ft.View:
         if resposta_enviada[0] is not None:
             return
         resposta_enviada[0] = indice
-        for b in botoes:
+        for i, b in enumerate(botoes):
             b.disabled = True
-        feedback.value = "aguardando..."
-        feedback.color = TEXT_PRIMARY
+            b.opacity = 1.0 if i == indice else 0.35
+        feedback.value = "Resposta enviada."
+        feedback.color = TEXT_SECONDARY
         page.update()
         page.run_task(enviar_resposta, indice, numero)
 
@@ -125,17 +126,32 @@ def tela_questao(page: ft.Page) -> ft.View:
                     page._questao_token += 1
                     corretas = dados_ws.get("indices_corretos", [])
                     acertou = dados_ws.get("acertou")
-                    if resposta_enviada[0] is None:
+                    minha_resposta = resposta_enviada[0]
+                    if minha_resposta is None:
                         feedback.value = "Tempo esgotado"
                         feedback.color = TEXT_SECONDARY
-                    elif acertou is True or resposta_enviada[0] in corretas:
+                    elif acertou is True or minha_resposta in corretas:
                         feedback.value = "Correta"
                         feedback.color = ACCENT
                     else:
                         feedback.value = "Incorreta"
                         feedback.color = TEXT_DANGER
-                    for b in botoes:
+                    for i, b in enumerate(botoes):
                         b.disabled = True
+                        b.opacity = 1.0
+                        cor_borda = None
+                        if i in corretas:
+                            cor_borda = TEXT_SUCCESS
+                        elif i == minha_resposta:
+                            cor_borda = TEXT_DANGER
+                        if cor_borda:
+                            b.style = ft.ButtonStyle(
+                                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
+                                side={
+                                    ft.ControlState.DEFAULT: ft.BorderSide(width=3, color=cor_borda),
+                                    ft.ControlState.DISABLED: ft.BorderSide(width=3, color=cor_borda),
+                                },
+                            )
                     page.update()
 
                 elif tipo == "questao":
@@ -180,9 +196,10 @@ def tela_questao(page: ft.Page) -> ft.View:
         botoes.append(fazer_botao(i, alt))
 
     if resposta_enviada[0] is not None:
-        for botao in botoes:
+        for i, botao in enumerate(botoes):
             botao.disabled = True
-        feedback.value = "Resposta enviada. Aguardando o resultado..."
+            botao.opacity = 1.0 if i == resposta_enviada[0] else 0.35
+        feedback.value = "Resposta enviada."
         feedback.color = TEXT_SECONDARY
 
     _midia_inicial = _render_media(link_midia)
@@ -218,9 +235,10 @@ def tela_questao(page: ft.Page) -> ft.View:
         botoes.extend(fazer_botao(i, alt) for i, alt in enumerate(novos_dados.get("alternativas", [])))
         alternativas_col.controls = botoes
         if resposta_enviada[0] is not None:
-            for botao in botoes:
+            for i, botao in enumerate(botoes):
                 botao.disabled = True
-            feedback.value = "Resposta enviada. Aguardando o resultado..."
+                botao.opacity = 1.0 if i == resposta_enviada[0] else 0.35
+            feedback.value = "Resposta enviada."
         nova_midia = novos_dados.get("link_midia")
         if chave_midia(nova_midia) != chave_midia(link_midia):
             conteudo = _render_media(nova_midia)
