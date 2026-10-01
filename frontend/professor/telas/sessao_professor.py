@@ -16,7 +16,8 @@ from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.pontuacao import formatar_pontos
 from compartilhado.sistema_design.tokens import (
     ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_H, BTN_RADIUS,
-    CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION, FONT_SUBHEADING,
+    CARD_PADDING_SM, CARD_RADIUS, CARD_W, FONT_BODY, FONT_CAPTION, FONT_DISPLAY,
+    FONT_HEADING, FONT_SUBHEADING,
     SPACE_MD, TEXT_DANGER, TEXT_PRIMARY, TEXT_SECONDARY,
     TEXT_SUCCESS,
 )
@@ -104,6 +105,76 @@ def _origem_aluno() -> str:
     return f"http://{_ip_local()}:{_PORTA_ALUNO}"
 
 
+def construir_podio(placar: list[dict]) -> ft.Control:
+    if not placar:
+        return ft.Text(
+            "Nenhuma resposta registrada.", color=TEXT_SECONDARY,
+            size=FONT_BODY, text_align=ft.TextAlign.CENTER,
+        )
+
+    top3 = placar[:3]
+    resto = placar[3:]
+    medalhas = {1: "🥇", 2: "🥈", 3: "🥉"}
+    alturas = {1: 200, 2: 160, 3: 130}
+    ordem_visual = [2, 1, 3][: len(top3)] if len(top3) >= 2 else [1]
+
+    def _bloco_top(posicao: int) -> ft.Control:
+        item = top3[posicao - 1]
+        return ft.Container(
+            width=180, height=alturas[posicao], alignment=ft.alignment.center,
+            bgcolor=BG_INPUT, border_radius=CARD_RADIUS,
+            content=ft.Column(
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=4,
+                controls=[
+                    ft.Text(medalhas[posicao], size=36),
+                    ft.Text(
+                        item["apelido"], color=TEXT_PRIMARY, size=FONT_BODY,
+                        weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER,
+                    ),
+                    ft.Text(
+                        f"{formatar_pontos(item['pontos'])} pt{'s' if item['pontos'] != 1 else ''}",
+                        color=TEXT_SECONDARY, size=FONT_CAPTION,
+                    ),
+                ],
+            ),
+        )
+
+    linha_podio = ft.Row(
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.END,
+        spacing=16,
+        controls=[_bloco_top(p) for p in ordem_visual],
+    )
+
+    lista_resto = ft.Column(
+        spacing=8, scroll=ft.ScrollMode.AUTO, expand=True,
+        controls=[
+            ft.Container(
+                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                bgcolor=BG_INPUT, border_radius=8,
+                content=ft.Row(
+                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    controls=[
+                        ft.Text(f"{pos}. {item['apelido']}", color=TEXT_PRIMARY, size=FONT_CAPTION),
+                        ft.Text(
+                            f"{formatar_pontos(item['pontos'])} pt{'s' if item['pontos'] != 1 else ''}",
+                            color=TEXT_SECONDARY, size=FONT_CAPTION,
+                        ),
+                    ],
+                ),
+            )
+            for pos, item in enumerate(resto, start=4)
+        ],
+    ) if resto else ft.Container()
+
+    return ft.Column(
+        expand=True, spacing=SPACE_MD, horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        controls=[linha_podio, lista_resto],
+    )
+
+
 def tela_sessao_professor(page: ft.Page) -> ft.View:
     codigo_text = ft.Text("----", size=56, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY)
     qr_image = ft.Image(
@@ -131,7 +202,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     )
     status_text = ft.Text("Escolha um quiz para abrir a sala", color=TEXT_SECONDARY, size=FONT_CAPTION)
     participantes_col = ft.Column(spacing=8)
-    respondidos_text = ft.Text("", color=TEXT_SECONDARY, size=FONT_CAPTION)
+    respondidos_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_CAPTION, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    respondidos_container = ft.Container(alignment=ft.alignment.center, content=respondidos_text)
     etapa_text = ft.Text("Etapa 1 de 3: Selecionar quiz", size=FONT_CAPTION, color=TEXT_SECONDARY)
     codigo_sidebar_text = ft.Text("", size=FONT_SUBHEADING, color=TEXT_PRIMARY, weight=ft.FontWeight.BOLD, visible=False)
     questao_text = ft.Text("", color=TEXT_PRIMARY, size=FONT_BODY, weight=ft.FontWeight.BOLD, visible=False)
@@ -173,6 +245,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
             icon=ft.Icons.OPEN_IN_NEW,
             on_click=lambda _, u=url: page.launch_url(u, web_window_name="_blank"),
         )
+
+    podio_final = ft.Container(visible=False, expand=True)
 
     selector = ft.Dropdown(
         label="Selecionar quiz",
@@ -306,6 +380,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                     elif tipo == "questao_professor":
                         acesso_sala.visible = False
                         andamento_sala.visible = True
+                        podio_final.visible = False
                         numero = dados.get("numero", 1)
                         total = dados.get("total", 1)
                         peso = dados.get("peso", 1)
@@ -313,6 +388,8 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         questao_text.visible = True
                         tempo_text.value = "0s decorridos"
                         tempo_text.visible = True
+                        respondidos_text.value = ""
+                        respondidos_container.visible = True
                         _timer_ativo[0] = True
                         page.run_task(_timer_questao)
                         nova_url = dados.get("link_midia")
@@ -327,6 +404,12 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                             else:
                                 midia_sessao.content = None
                                 midia_sessao.visible = False
+                        if midia_sessao.visible:
+                            respondidos_text.size = FONT_CAPTION
+                            respondidos_container.expand = False
+                        else:
+                            respondidos_text.size = FONT_DISPLAY
+                            respondidos_container.expand = True
                         page.update()
 
                     elif tipo == "responderam":
@@ -348,11 +431,14 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
                         _timer_ativo[0] = False
                         btn_iniciar.visible = False
                         status_text.value = "Aula encerrada"
-                        respondidos_text.value = ""
-                        etapa_text.value = "Aula concluida"
                         questao_text.visible = False
                         tempo_text.visible = False
+                        midia_sessao.visible = False
+                        respondidos_container.visible = False
+                        etapa_text.value = "Aula concluida"
                         placar = dados.get("placar", [])
+                        podio_final.content = construir_podio(placar)
+                        podio_final.visible = True
                         participantes_col.controls = [
                             ft.Container(
                                 padding=ft.padding.symmetric(horizontal=12, vertical=8),
@@ -477,7 +563,7 @@ def tela_sessao_professor(page: ft.Page) -> ft.View:
     andamento_sala = ft.Column(
         expand=True, visible=False, spacing=SPACE_MD, scroll=ft.ScrollMode.AUTO,
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        controls=[titulo_andamento, questao_text, midia_sessao, tempo_text, respondidos_text],
+        controls=[titulo_andamento, questao_text, midia_sessao, respondidos_container, tempo_text, podio_final],
     )
     card_principal = ft.Container(
         expand=True, padding=CARD_PADDING_SM, bgcolor=BG_CARD, border_radius=CARD_RADIUS,
