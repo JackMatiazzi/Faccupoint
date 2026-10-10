@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.5.0...v1.6.0) (2026-10-10)
+
+
+### Features
+
+* **sessao:** podio top 5 sem emoji e alternativas so com contorno no resultado ([f16d7a0](https://github.com/JackMatiazzi/Faccupoint/commit/f16d7a0a4f6edfa533afc349556a642aa18f20ab))
+* **sessao:** podio top 5 sem emoji e alternativas so com contorno no… ([25707f0](https://github.com/JackMatiazzi/Faccupoint/commit/25707f0181bda7b9ca80a009d4980ed7a2b2d4e5))
+
 ## [1.5.0](https://github.com/JackMatiazzi/Faccupoint/compare/v1.4.2...v1.5.0) (2026-10-01)
 
 
