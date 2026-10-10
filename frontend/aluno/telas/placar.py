@@ -1,12 +1,11 @@
-from compartilhado.pontuacao import formatar_pontos
-
 from datetime import datetime
 
 import flet as ft
 
 from compartilhado.navegacao import ir_para
+from compartilhado.sistema_design.componentes.podio import construir_podio
 from compartilhado.sistema_design.tokens import (
-    ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING, CARD_RADIUS,
+    ACCENT, BG_CARD, BG_PAGE, BTN_H, BTN_RADIUS, CARD_PADDING_SM, CARD_RADIUS,
     FONT_CAPTION, FONT_HEADING, SPACE_MD, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT,
 )
 
@@ -28,35 +27,6 @@ def tela_placar(page: ft.Page) -> ft.View:
             pass
         ir_para(page, "/")
 
-    linhas = []
-    for posicao, item in enumerate(placar, start=1):
-        apelido = item.get("apelido", "Aluno")
-        pontos = item.get("pontos", 0)
-        linhas.append(
-            ft.Container(
-                bgcolor=BG_PAGE,
-                border_radius=8,
-                padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                content=ft.Row(
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    controls=[
-                        ft.Text(f"{posicao}. {apelido}", color=TEXT_PRIMARY, size=FONT_CAPTION),
-                        ft.Text(f"{formatar_pontos(pontos)} ponto{'s' if pontos != 1 else ''}", color=TEXT_SECONDARY, size=FONT_CAPTION),
-                    ],
-                ),
-            )
-        )
-
-    if not linhas:
-        linhas.append(
-            ft.Text(
-                "sem respostas",
-                size=FONT_CAPTION,
-                color=TEXT_SECONDARY,
-                text_align=ft.TextAlign.CENTER,
-            )
-        )
-
     return ft.View(
         route="/placar",
         bgcolor=BG_PAGE,
@@ -64,21 +34,21 @@ def tela_placar(page: ft.Page) -> ft.View:
         controls=[
             ft.Column(
                 expand=True,
-                alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
                     ft.Container(
-                        padding=ft.padding.all(CARD_PADDING),
+                        expand=True,
+                        padding=ft.padding.all(CARD_PADDING_SM),
                         bgcolor=BG_CARD,
                         border_radius=CARD_RADIUS,
                         content=ft.Column(
+                            expand=True,
                             spacing=SPACE_MD,
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                             controls=[
-                                ft.Text(f"Aula encerrada às {horario_encerramento}", size=FONT_CAPTION, color=TEXT_SECONDARY),
-                                ft.Text("Placar final", size=FONT_HEADING, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY),
-                                *linhas,
-                                ft.Container(height=8),
+                                ft.Text(f"Aula encerrada às {horario_encerramento}", size=FONT_CAPTION, color=TEXT_SECONDARY, text_align=ft.TextAlign.CENTER),
+                                ft.Text("Placar final", size=FONT_HEADING, weight=ft.FontWeight.BOLD, color=TEXT_PRIMARY, text_align=ft.TextAlign.CENTER),
+                                construir_podio(placar),
                                 ft.ElevatedButton(
                                     text="Entrar em outra sala",
                                     bgcolor=ACCENT, color=TEXT_ON_ACCENT, height=BTN_H,
