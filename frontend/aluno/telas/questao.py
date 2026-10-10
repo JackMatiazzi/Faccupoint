@@ -8,7 +8,7 @@ import flet as ft
 from compartilhado.navegacao import ir_para
 from compartilhado.sistema_design.midia import eh_imagem, id_video_youtube
 from compartilhado.sistema_design.tokens import (
-    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BTN_GREEN_TEXT, BTN_QUESTAO_H, BTN_RADIUS,
+    ACCENT, BG_CARD, BG_INPUT, BG_PAGE, BORDER, BTN_GREEN_TEXT, BTN_QUESTAO_H, BTN_RADIUS,
     CARD_PADDING_SM, CARD_RADIUS, CORES_ALTERNATIVAS,
     FONT_CAPTION, FONT_SUBHEADING, SPACE_MD, TEXT_DANGER,
     TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ON_ACCENT, TEXT_SUCCESS,
@@ -76,13 +76,29 @@ def tela_questao(page: ft.Page) -> ft.View:
             b.disabled = True
         page.update()
 
+    def estilo_contorno(cor_borda: str = BORDER, largura: int = 1) -> ft.ButtonStyle:
+        borda = ft.BorderSide(width=largura, color=cor_borda)
+        return ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
+            bgcolor=ft.Colors.TRANSPARENT,
+            color={ft.ControlState.DEFAULT: TEXT_PRIMARY, ft.ControlState.DISABLED: TEXT_PRIMARY},
+            elevation=0,
+            side={ft.ControlState.DEFAULT: borda, ft.ControlState.DISABLED: borda},
+        )
+
+    def estilo_colorido(indice: int) -> ft.ButtonStyle:
+        cor = CORES_ALTERNATIVAS[indice % len(CORES_ALTERNATIVAS)]
+        return ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
+            bgcolor={ft.ControlState.DEFAULT: cor, ft.ControlState.DISABLED: cor},
+            color={ft.ControlState.DEFAULT: BTN_GREEN_TEXT, ft.ControlState.DISABLED: BTN_GREEN_TEXT},
+        )
+
     def fazer_botao(indice: int, texto: str) -> ft.ElevatedButton:
         return ft.ElevatedButton(
             text=texto,
-            bgcolor=CORES_ALTERNATIVAS[indice % len(CORES_ALTERNATIVAS)],
-            color=BTN_GREEN_TEXT,
             height=BTN_QUESTAO_H,
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS)),
+            style=estilo_colorido(indice),
             on_click=lambda e, i=indice: responder(i),
         )
 
@@ -139,19 +155,12 @@ def tela_questao(page: ft.Page) -> ft.View:
                     for i, b in enumerate(botoes):
                         b.disabled = True
                         b.opacity = 1.0
-                        cor_borda = None
                         if i in corretas:
-                            cor_borda = TEXT_SUCCESS
+                            b.style = estilo_contorno(TEXT_SUCCESS, 3)
                         elif i == minha_resposta:
-                            cor_borda = TEXT_DANGER
-                        if cor_borda:
-                            b.style = ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=BTN_RADIUS),
-                                side={
-                                    ft.ControlState.DEFAULT: ft.BorderSide(width=3, color=cor_borda),
-                                    ft.ControlState.DISABLED: ft.BorderSide(width=3, color=cor_borda),
-                                },
-                            )
+                            b.style = estilo_contorno(TEXT_DANGER, 3)
+                        else:
+                            b.style = estilo_contorno()
                     page.update()
 
                 elif tipo == "questao":

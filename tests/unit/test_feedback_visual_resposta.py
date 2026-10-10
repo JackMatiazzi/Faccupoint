@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "frontend"))
 import flet as ft
 from aluno.telas import questao
-from compartilhado.sistema_design.tokens import TEXT_DANGER, TEXT_SUCCESS
+from compartilhado.sistema_design.tokens import BORDER, CORES_ALTERNATIVAS, TEXT_DANGER, TEXT_SUCCESS
 
 
 def _encontrar_botoes(controle, encontrados=None):
@@ -52,6 +52,33 @@ class FeedbackVisualRespostaTest(unittest.TestCase):
     def setUp(self):
         self._tasks = []
 
+    def test_alternativas_ficam_coloridas_antes_do_resultado(self):
+        page = self._preparar()
+        botoes = _encontrar_botoes(page.views[-1])
+        botoes[0].on_click(None)
+
+        for i, b in enumerate(botoes):
+            self.assertEqual(b.style.bgcolor.get(ft.ControlState.DISABLED), CORES_ALTERNATIVAS[i])
+
+    def test_resultado_tira_as_cores_e_deixa_so_contorno(self):
+        async def cenario():
+            page = self._preparar()
+            botoes = _encontrar_botoes(page.views[-1])
+            botoes[0].on_click(None)
+
+            consumer = next(fn for fn, args in self._tasks if fn.__name__ == "aguardar_resultado")
+            running = asyncio.create_task(consumer())
+            await page._ws_queue.put({"tipo": "resultado", "indices_corretos": [2], "acertou": False})
+            await asyncio.sleep(0)
+
+            self.assertTrue(all(b.style.bgcolor == ft.Colors.TRANSPARENT for b in botoes))
+
+            running.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await running
+
+        asyncio.run(cenario())
+
     def test_selecionar_alternativa_destaca_ela_e_esmaece_as_outras(self):
         page = self._preparar()
         botoes = _encontrar_botoes(page.views[-1])
@@ -77,7 +104,7 @@ class FeedbackVisualRespostaTest(unittest.TestCase):
 
             self.assertEqual(_cor_da_borda(botoes[0]), TEXT_DANGER)
             self.assertEqual(_cor_da_borda(botoes[2]), TEXT_SUCCESS)
-            self.assertIsNone(_cor_da_borda(botoes[1]))
+            self.assertEqual(_cor_da_borda(botoes[1]), BORDER)
             self.assertTrue(all(b.opacity == 1.0 for b in botoes))
 
             running.cancel()
@@ -98,8 +125,8 @@ class FeedbackVisualRespostaTest(unittest.TestCase):
             await asyncio.sleep(0)
 
             self.assertEqual(_cor_da_borda(botoes[2]), TEXT_SUCCESS)
-            self.assertIsNone(_cor_da_borda(botoes[0]))
-            self.assertIsNone(_cor_da_borda(botoes[1]))
+            self.assertEqual(_cor_da_borda(botoes[0]), BORDER)
+            self.assertEqual(_cor_da_borda(botoes[1]), BORDER)
 
             running.cancel()
             with self.assertRaises(asyncio.CancelledError):
@@ -118,8 +145,8 @@ class FeedbackVisualRespostaTest(unittest.TestCase):
             await asyncio.sleep(0)
 
             self.assertEqual(_cor_da_borda(botoes[1]), TEXT_SUCCESS)
-            self.assertIsNone(_cor_da_borda(botoes[0]))
-            self.assertIsNone(_cor_da_borda(botoes[2]))
+            self.assertEqual(_cor_da_borda(botoes[0]), BORDER)
+            self.assertEqual(_cor_da_borda(botoes[2]), BORDER)
 
             running.cancel()
             with self.assertRaises(asyncio.CancelledError):
